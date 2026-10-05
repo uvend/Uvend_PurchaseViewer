@@ -1,0 +1,71 @@
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id           String       @id @default(cuid())
+  name         String?
+  username     String?      @unique
+  email        String?      @unique
+  passwordHash String?
+  role         UserRole     @default(USER)
+  purchases    Purchase[]
+  loginEvents  LoginEvent[]
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+}
+
+model Purchase {
+  id                String   @id @default(cuid())
+
+  userId            String?
+  user              User?    @relation(fields: [userId], references: [id])
+
+  shopName          String
+  customShop        Boolean  @default(false)
+
+  cardLabel         String
+  cardBank          String?
+  cardLastFour      String?
+
+  description       String
+
+  latitude          Float?
+  longitude         Float?
+  locationStatus    String?
+
+  slipLabel         String
+  slipImageName     String
+  slipImageMimeType String
+  slipImageBytes    Bytes
+
+  itemLabel         String
+  itemImageName     String
+  itemImageMimeType String
+  itemImageBytes    Bytes
+
+  purchasedAt       DateTime @default(now())
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model LoginEvent {
+  id        String    @id @default(cuid())
+  userId    String?
+  user      User?     @relation(fields: [userId], references: [id])
+  username  String
+  role      UserRole?
+  success   Boolean
+  source    String
+  createdAt DateTime  @default(now())
+}
+
+enum UserRole {
+  USER
+  INSTALLER
+  ADMIN
+}
