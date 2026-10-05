@@ -4,8 +4,8 @@
 
 [build.environment]
   NODE_VERSION = "22"
-  # NEON_BRANCH is a branch name (often "production"), not a credential.
-  # The Next.js app uses DATABASE_URL. Keep this omit so docs that say
-  # "production" do not fail Netlify secret scanning.
-  SECRETS_SCAN_OMIT_KEYS = "NEON_BRANCH"
+  # NEXT_PUBLIC_* keys are inlined into client JS on purpose.
+  # PORT is assigned by Netlify; do not set it in the Netlify UI.
+  # NEON_BRANCH is a branch name, not a credential.
+  SECRETS_SCAN_OMIT_KEYS = "NEON_BRANCH,NEXT_PUBLIC_TOMTOM_API_KEY,PORT"
   SECRETS_SCAN_OMIT_PATHS = ".agents/**,.claude/**,.windsurf/**"
