@@ -50,7 +50,7 @@ Configure supported Managed plugins through Neon (Console, API, or `neon neon-au
 ## What It Does
 
 - **Managed identity in Postgres** — users and sessions in `neon_auth`, queryable with SQL, compatible with RLS.
-- **Auth emails without an app mailer** — verification, email OTP, magic links, and password reset. Getting started uses shared SMTP (`auth@mail.myneon.app`). You do not add Resend or SendGrid to implement login. Production needs custom SMTP: https://neon.com/docs/auth/production-checklist.md
+- **Auth emails without an app mailer** — verification, email OTP, magic links, and password reset. Getting started uses shared SMTP (`auth@mail.myneon.app`). You do not add Resend or SendGrid to implement login. Live deploys need custom SMTP: https://neon.com/docs/auth/guides/customize-emails.md
 - **Branches with the database** — each branch has its own Auth URL and isolated auth state.
 - **Better Auth client methods via the Neon SDK** — `@neondatabase/auth` (auth only) or `@neondatabase/neon-js/auth` (combined SDK). Optional UI: `@neondatabase/auth-ui`.
 - **Fixed plugin set** — the Managed client does not accept a `plugins` option. See [plugin support](#plugin-support).
@@ -113,7 +113,7 @@ Checked 2026-09-17 against https://neon.com/docs/auth/guides/plugins.md, https:/
 | Feature | Managed Auth | Boundary |
 | --- | --- | --- |
 | Email/password | Supported | `signUp.email`, `signIn.email` |
-| Social OAuth (Google, GitHub, Vercel) | Supported | `signIn.social`. Shared Google credentials are for development; production and GitHub/Vercel need your own OAuth apps. https://neon.com/docs/auth/guides/setup-oauth.md |
+| Social OAuth (Google, GitHub, Vercel) | Supported | `signIn.social`. Shared Google credentials are for development; live deploys and GitHub/Vercel need your own OAuth apps. https://neon.com/docs/auth/guides/setup-oauth.md |
 | Admin | Supported | Admin session required. Plugin customization is on the roadmap. |
 | Email OTP | Supported | Managed delivery. `emailOtp.sendVerificationOtp`, `signIn.emailOtp`. |
 | Magic Link | Supported | Enable on the branch (off by default). `signIn.magicLink`. |
@@ -132,7 +132,7 @@ Trusted domains and webhooks are Neon settings, not installable Better Auth plug
 
 ## Trusted domains
 
-Auth redirects only to origins on its allowlist. `invalid domain` means the app origin is missing. Include the scheme, omit a trailing slash, register production and preview origins before pointing users at them, and target the correct branch:
+Auth redirects only to origins on its allowlist. `invalid domain` means the app origin is missing. Include the scheme, omit a trailing slash, register live and preview origins before pointing users at them, and target the correct branch:
 
 ```bash
 neon neon-auth domain add https://app.example.com
