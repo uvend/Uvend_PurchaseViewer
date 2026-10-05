@@ -7,5 +7,6 @@
   # NEXT_PUBLIC_* keys are inlined into client JS on purpose.
   # PORT is assigned by Netlify; do not set it in the Netlify UI.
   # NEON_BRANCH is a branch name, not a credential.
+  # JWT_SECRET stays scanned in app bundles. Turbopack cache is omitted.
   SECRETS_SCAN_OMIT_KEYS = "NEON_BRANCH,NEXT_PUBLIC_TOMTOM_API_KEY,PORT"
-  SECRETS_SCAN_OMIT_PATHS = ".agents/**,.claude/**,.windsurf/**"
+  SECRETS_SCAN_OMIT_PATHS = ".agents/**,.claude/**,.windsurf/**,.next/cache/**,.netlify/.next/cache/**"
