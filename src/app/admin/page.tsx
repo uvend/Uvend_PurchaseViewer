@@ -1,9 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
-import { AdminLogoutButton } from "./AdminLogoutButton";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { AdminFrame } from "./AdminFrame";
 import { TomTomPurchaseMap } from "./TomTomPurchaseMap";
+import { Button } from "@/components/ui/button";
+import { controlClass } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Notice } from "@/components/ui/notice";
+import { cn } from "@/lib/utils";
 
 type Purchase = {
   id: string;
@@ -106,96 +110,56 @@ export default function AdminDashboard() {
   }
 
   return (
-      <main className="admin-shell">
-      <header className="admin-hero">
-        <div>
-          <p className="eyebrow">MR A admin</p>
-          <h1>Purchase dashboard</h1>
-          <p>
-            Review card purchases, filter records, and track captured GPS points
-            on the map.
-          </p>
-        </div>
-        <div className="admin-link-row">
-          <Link className="admin-link" href="/admin/configure">
-            Configure
-          </Link>
-          <Link className="admin-link" href="/purchase">
-            Capture app
-          </Link>
-          <AdminLogoutButton />
-        </div>
-      </header>
+    <AdminFrame kicker="Purchases" title="Logged on the road">
 
-      <section className="admin-filters" aria-label="Purchase filters">
-        <label>
-          Shop
-          <select value={shopFilter} onChange={(event) => setShopFilter(event.target.value)}>
+      <section className="grid gap-3 rounded-xl border bg-card p-4 sm:grid-cols-2 xl:grid-cols-5" aria-label="Purchase filters">
+        <FilterField label="Shop">
+          <select className={controlClass} onChange={(event) => setShopFilter(event.target.value)} value={shopFilter}>
             <option>{allFilter}</option>
             {filterOptions.shops.map((shop) => (
               <option key={shop}>{shop}</option>
             ))}
           </select>
-        </label>
-
-        <label>
-          Card
-          <select value={cardFilter} onChange={(event) => setCardFilter(event.target.value)}>
+        </FilterField>
+        <FilterField label="Card">
+          <select className={controlClass} onChange={(event) => setCardFilter(event.target.value)} value={cardFilter}>
             <option>{allFilter}</option>
             {filterOptions.cards.map((card) => (
               <option key={card}>{card}</option>
             ))}
           </select>
-        </label>
-
-        <label>
-          User
-          <select value={userFilter} onChange={(event) => setUserFilter(event.target.value)}>
+        </FilterField>
+        <FilterField label="User">
+          <select className={controlClass} onChange={(event) => setUserFilter(event.target.value)} value={userFilter}>
             <option>{allFilter}</option>
             {filterOptions.users.map((user) => (
               <option key={user}>{user}</option>
             ))}
           </select>
-        </label>
-
-        <label>
-          From
-          <input
-            type="date"
-            value={fromDate}
-            onChange={(event) => setFromDate(event.target.value)}
-          />
-        </label>
-
-        <label>
-          To
-          <input
-            type="date"
-            value={toDate}
-            onChange={(event) => setToDate(event.target.value)}
-          />
-        </label>
+        </FilterField>
+        <FilterField label="From">
+          <input className={controlClass} onChange={(event) => setFromDate(event.target.value)} type="date" value={fromDate} />
+        </FilterField>
+        <FilterField label="To">
+          <input className={controlClass} onChange={(event) => setToDate(event.target.value)} type="date" value={toDate} />
+        </FilterField>
       </section>
 
-      {error && <p className="admin-error">{error}</p>}
+      {error ? <Notice>{error}</Notice> : null}
 
-      <section className="admin-stats" aria-label="Dashboard totals">
-        <StatCard label="Filtered purchases" value={filteredPurchases.length} />
-        <StatCard label="Mapped GPS pins" value={mappedPurchases.length} />
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Dashboard totals">
+        <StatCard label="Purchases" value={filteredPurchases.length} />
+        <StatCard label="On the map" value={mappedPurchases.length} />
         <StatCard label="Shops" value={filterOptions.shops.length} />
         <StatCard label="Cards" value={filterOptions.cards.length} />
       </section>
 
-      <section className="admin-grid">
-        <section className="map-panel">
-          <div className="panel-heading">
-            <div>
-              <p className="screen-kicker">Geo tracking</p>
-              <h2>Purchase map</h2>
-            </div>
-            <span>{mappedPurchases.length} pins</span>
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1.5fr)_minmax(280px,0.8fr)]">
+        <section className="rounded-xl border bg-card p-4">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h2 className="text-base font-semibold tracking-tight">Map</h2>
+            <span className="text-sm text-muted-foreground">{mappedPurchases.length} pins</span>
           </div>
-
           <TomTomPurchaseMap
             loading={loading}
             onSelectPurchase={setSelectedPurchaseId}
@@ -204,113 +168,121 @@ export default function AdminDashboard() {
           />
         </section>
 
-        <aside className="selected-panel recent-panel">
-          <div className="panel-heading">
-            <div>
-              <p className="screen-kicker">Recent purchases</p>
-              <h2>Click to inspect</h2>
-            </div>
-            <span>{recentPurchases.length}</span>
+        <aside className="rounded-xl border bg-card p-4">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h2 className="text-base font-semibold tracking-tight">Recent</h2>
+            <span className="text-sm text-muted-foreground">{recentPurchases.length}</span>
           </div>
-
-          <div className="recent-list">
+          <div className="grid max-h-[520px] gap-2 overflow-auto">
             {recentPurchases.map((purchase) => {
               const isOpen = selectedPurchaseId === purchase.id;
 
               return (
                 <article
-                  className={isOpen ? "recent-item open" : "recent-item"}
+                  className={cn("overflow-hidden rounded-lg border", isOpen && "border-foreground bg-accent")}
                   key={purchase.id}
                 >
                   <button
-                    className="recent-item-toggle"
+                    className="grid w-full gap-0.5 px-3 py-3 text-left text-sm"
                     onClick={() => selectPurchase(purchase.id)}
                     type="button"
                   >
                     <strong>{purchase.shopName}</strong>
-                    <span>{formatDate(purchase.purchasedAt)}</span>
-                    <small>{getUserLabel(purchase)}</small>
+                    <span className="text-muted-foreground">{formatDate(purchase.purchasedAt)}</span>
+                    <span className="text-muted-foreground">{getUserLabel(purchase)}</span>
                   </button>
-
-                  {isOpen && (
-                    <div className="recent-item-details">
+                  {isOpen ? (
+                    <div className="grid gap-2 px-3 pb-3 text-sm">
                       <p>{purchase.description}</p>
-                      <span>Card: {purchase.cardLabel}</span>
-                      <span>
-                        Status: {purchase.locationStatus || "No location status"}
-                      </span>
-                      <span>
-                        GPS:{" "}
+                      <p className="text-muted-foreground">Card: {purchase.cardLabel}</p>
+                      <p className="text-muted-foreground">
+                        {purchase.locationStatus || "No location status"}
+                      </p>
+                      <p className="text-muted-foreground">
                         {hasCoordinates(purchase)
                           ? `${purchase.latitude}, ${purchase.longitude}`
                           : "No GPS"}
-                      </span>
-                      <div className="download-row">
-                        <a href={purchase.downloads.slip} rel="noreferrer" target="_blank">
-                          View slip
-                        </a>
-                        <a href={purchase.downloads.item} rel="noreferrer" target="_blank">
-                          View product
-                        </a>
+                      </p>
+                      <div className="flex gap-2">
+                        <Button asChild size="sm" variant="outline">
+                          <a href={purchase.downloads.slip} rel="noreferrer" target="_blank">
+                            Slip
+                          </a>
+                        </Button>
+                        <Button asChild size="sm" variant="outline">
+                          <a href={purchase.downloads.item} rel="noreferrer" target="_blank">
+                            Item
+                          </a>
+                        </Button>
                       </div>
                     </div>
-                  )}
+                  ) : null}
                 </article>
               );
             })}
-
-            {!loading && recentPurchases.length === 0 && (
-              <p className="empty-list">No purchases match the current filters.</p>
-            )}
+            {!loading && recentPurchases.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Nothing matches these filters.</p>
+            ) : null}
           </div>
         </aside>
       </section>
 
-      <section className="purchase-table-panel">
-        <div className="panel-heading">
-          <div>
-            <p className="screen-kicker">Database records</p>
-            <h2>Purchases</h2>
-          </div>
-          {loading && <span>Loading...</span>}
+      <section className="rounded-xl border bg-card p-4">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-base font-semibold tracking-tight">All purchases</h2>
+          {loading ? <span className="text-sm text-muted-foreground">Loading...</span> : null}
         </div>
-
-        <div className="purchase-list">
+        <div className="grid gap-2">
           {filteredPurchases.map((purchase) => (
-            <article className="purchase-row" key={purchase.id}>
+            <article
+              className="grid gap-3 rounded-lg border p-3 text-sm md:grid-cols-[minmax(0,1.4fr)_1fr_0.8fr_1fr_auto] md:items-center"
+              key={purchase.id}
+            >
               <div>
                 <strong>{purchase.shopName}</strong>
-                <p>{purchase.description}</p>
+                <p className="text-muted-foreground">{purchase.description}</p>
               </div>
               <span>{purchase.cardLabel}</span>
               <span>{getUserLabel(purchase)}</span>
-              <span>{formatDate(purchase.purchasedAt)}</span>
-              <div className="table-actions">
-                <a href={purchase.downloads.slip} rel="noreferrer" target="_blank">
-                  Slip
-                </a>
-                <a href={purchase.downloads.item} rel="noreferrer" target="_blank">
-                  Item
-                </a>
+              <span className="text-muted-foreground">{formatDate(purchase.purchasedAt)}</span>
+              <div className="flex gap-2">
+                <Button asChild size="sm" variant="outline">
+                  <a href={purchase.downloads.slip} rel="noreferrer" target="_blank">
+                    Slip
+                  </a>
+                </Button>
+                <Button asChild size="sm" variant="outline">
+                  <a href={purchase.downloads.item} rel="noreferrer" target="_blank">
+                    Item
+                  </a>
+                </Button>
               </div>
             </article>
           ))}
-
-          {!loading && filteredPurchases.length === 0 && (
-            <p className="empty-list">No purchases match the current filters.</p>
-          )}
+          {!loading && filteredPurchases.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Nothing matches these filters.</p>
+          ) : null}
         </div>
       </section>
-      </main>
+    </AdminFrame>
   );
 }
 
 function StatCard({ label, value }: { label: string; value: number }) {
   return (
-    <article className="stat-card">
-      <span>{label}</span>
-      <strong>{value}</strong>
+    <article className="rounded-xl border bg-card p-4">
+      <p className="text-sm text-muted-foreground">{label}</p>
+      <p className="mt-1 text-2xl font-semibold tabular-nums">{value}</p>
     </article>
+  );
+}
+
+function FilterField({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="grid gap-2">
+      <Label>{label}</Label>
+      {children}
+    </div>
   );
 }
 

@@ -135,19 +135,23 @@ export function TomTomPurchaseMap({
 
   if (!apiKey) {
     return (
-      <div className="tomtom-map missing-key">
+      <div className="grid min-h-80 place-items-center gap-2 rounded-xl border bg-muted/40 p-6 text-center">
         <strong>TomTom API key missing</strong>
-        <span>Add `NEXT_PUBLIC_TOMTOM_API_KEY` to `.env` to load the map.</span>
+        <span className="max-w-sm text-sm text-muted-foreground">
+          Add NEXT_PUBLIC_TOMTOM_API_KEY to .env to load the map.
+        </span>
       </div>
     );
   }
 
   return (
-    <div className="tomtom-map-wrap">
-      <div className="tomtom-map" ref={mapContainerRef} />
-      {!loading && mappedPurchases.length === 0 && (
-        <p className="empty-map">No GPS purchases match these filters.</p>
-      )}
+    <div className="relative overflow-hidden rounded-xl border">
+      <div className="h-[520px] w-full bg-muted" ref={mapContainerRef} />
+      {!loading && mappedPurchases.length === 0 ? (
+        <p className="pointer-events-none absolute inset-0 grid place-items-center text-sm font-medium text-muted-foreground">
+          No GPS purchases match these filters.
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -167,13 +171,16 @@ function renderMarkers(
 
   markerRefs.current = purchases.map((purchase) => {
     const element = document.createElement("button");
-    element.className =
-      purchase.id === selectedPurchaseId
-        ? "tomtom-purchase-marker active"
-        : "tomtom-purchase-marker";
     element.type = "button";
     element.title = `${purchase.shopName}: ${purchase.description}`;
     element.setAttribute("aria-label", `View ${purchase.shopName} purchase`);
+    element.style.width = purchase.id === selectedPurchaseId ? "16px" : "12px";
+    element.style.height = purchase.id === selectedPurchaseId ? "16px" : "12px";
+    element.style.borderRadius = "999px";
+    element.style.border = "2px solid white";
+    element.style.background = purchase.id === selectedPurchaseId ? "#18181b" : "#71717a";
+    element.style.boxShadow = "0 1px 4px rgba(0,0,0,0.35)";
+    element.style.cursor = "pointer";
     element.addEventListener("click", () => onSelectPurchase?.(purchase.id));
 
     return new Marker({ element, anchor: "bottom" })

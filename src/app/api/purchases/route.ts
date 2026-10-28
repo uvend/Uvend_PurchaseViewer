@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdmin, requireUser } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 type ImagePayload = {
@@ -15,6 +15,7 @@ type PurchasePayload = {
   cardBank?: string;
   cardLastFour?: string;
   description: string;
+  jobId?: string | null;
   latitude?: number;
   longitude?: number;
   locationStatus?: string;
@@ -100,6 +101,17 @@ export async function POST(request: Request) {
       );
     }
 
+    if (payload.jobId) {
+      const job = await prisma.job.findUnique({
+        where: { id: payload.jobId },
+        select: { id: true },
+      });
+
+      if (!job) {
+        return NextResponse.json({ error: "Job not found" }, { status: 404 });
+      }
+    }
+
     const purchase = await prisma.purchase.create({
       data: {
         userId: signedInUser.userId,
@@ -109,6 +121,7 @@ export async function POST(request: Request) {
         cardBank: payload.cardBank,
         cardLastFour: payload.cardLastFour ?? getLastFour(payload.cardLabel),
         description: payload.description,
+        jobId: payload.jobId || null,
         latitude: payload.latitude,
         longitude: payload.longitude,
         locationStatus: payload.locationStatus,
@@ -158,13 +171,14 @@ export async function POST(request: Request) {
 }
 
 export async function GET() {
-  const admin = await requireAdmin();
+  const user = await requireUser();
 
-  if (!admin) {
-    return NextResponse.json({ error: "Admin access required" }, { status: 401 });
+  if (!user) {
+    return NextResponse.json({ error: "Login required" }, { status: 401 });
   }
 
   const purchases = await prisma.purchase.findMany({
+    where: user.role === "ADMIN" ? undefined : { userId: user.userId },
     orderBy: {
       purchasedAt: "desc",
     },
@@ -174,6 +188,7 @@ export async function GET() {
       cardLabel: true,
       cardLastFour: true,
       description: true,
+      jobId: true,
       latitude: true,
       longitude: true,
       locationStatus: true,
@@ -183,6 +198,18 @@ export async function GET() {
       itemImageName: true,
       purchasedAt: true,
       createdAt: true,
+      job: {
+        select: {
+          id: true,
+          title: true,
+        },
+      },
+      invoiceItems: {
+        select: {
+          id: true,
+          invoiceId: true,
+        },
+      },
       user: {
         select: {
           id: true,

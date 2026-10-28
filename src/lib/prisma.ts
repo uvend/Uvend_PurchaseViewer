@@ -1,9 +1,27 @@
+import { setDefaultResultOrder } from "node:dns";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { Pool } from "pg";
+
+setDefaultResultOrder("ipv4first");
 
 const globalForPrisma = globalThis as unknown as {
-  prisma?: PrismaClient;
+  prismaPool?: Pool;
+  prismaClient?: PrismaClient;
 };
+
+function normalizeDatabaseUrl(databaseUrl: string) {
+  try {
+    const url = new URL(databaseUrl);
+    url.searchParams.delete("channel_binding");
+    if (!url.searchParams.has("connect_timeout")) {
+      url.searchParams.set("connect_timeout", "15");
+    }
+    return url.toString();
+  } catch {
+    return databaseUrl;
+  }
+}
 
 function createPrismaClient() {
   const databaseUrl = process.env.DATABASE_URL;
@@ -12,34 +30,34 @@ function createPrismaClient() {
     throw new Error("DATABASE_URL is not set");
   }
 
-  const isLocalhost = /localhost|127\.0\.0\.1/.test(databaseUrl);
-  let sslMode: string | null = null;
+  const pool =
+    globalForPrisma.prismaPool ??
+    new Pool({
+      connectionString: normalizeDatabaseUrl(databaseUrl),
+      ssl: { rejectUnauthorized: false },
+      max: 5,
+      idleTimeoutMillis: 10000,
+      connectionTimeoutMillis: 20000,
+      keepAlive: true,
+      keepAliveInitialDelayMillis: 5000,
+      allowExitOnIdle: true,
+    });
 
-  try {
-    sslMode = new URL(databaseUrl).searchParams.get("sslmode");
-  } catch {
-    sslMode = /[?&]sslmode=([^&]+)/.exec(databaseUrl)?.[1] ?? null;
-  }
-  const useSsl =
-    sslMode === "require" ||
-    sslMode === "verify-ca" ||
-    sslMode === "verify-full" ||
-    (!isLocalhost && process.env.NODE_ENV === "production" && process.env.DATABASE_SSL !== "disable");
-
-  const adapter = new PrismaPg({
-    connectionString: databaseUrl,
-    ssl: useSsl
-      ? {
-          rejectUnauthorized: sslMode === "verify-ca" || sslMode === "verify-full",
-        }
-      : undefined,
+  pool.on("error", (error) => {
+    console.error("Database pool error", error);
   });
 
-  return new PrismaClient({ adapter });
+  if (process.env.NODE_ENV !== "production") {
+    globalForPrisma.prismaPool = pool;
+  }
+
+  return new PrismaClient({
+    adapter: new PrismaPg(pool),
+  });
 }
 
-export const prisma = globalForPrisma.prisma ?? createPrismaClient();
+export const prisma = globalForPrisma.prismaClient ?? createPrismaClient();
 
 if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.prisma = prisma;
+  globalForPrisma.prismaClient = prisma;
 }

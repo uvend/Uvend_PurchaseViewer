@@ -1,8 +1,15 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
 
-export function AdminLogoutButton({ redirectTo = "/admin/login" }: { redirectTo?: string }) {
+export function AdminLogoutButton({
+  redirectTo = "/admin/login",
+  className,
+}: {
+  redirectTo?: string;
+  className?: string;
+}) {
   const router = useRouter();
 
   async function logout() {
@@ -12,8 +19,8 @@ export function AdminLogoutButton({ redirectTo = "/admin/login" }: { redirectTo?
   }
 
   return (
-    <button className="admin-link" onClick={logout} type="button">
+    <Button className={className} onClick={logout} size="sm" type="button" variant="ghost">
       Log out
-    </button>
+    </Button>
   );
 }

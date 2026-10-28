@@ -1,8 +1,13 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import Link from "next/link";
-import { AdminLogoutButton } from "../AdminLogoutButton";
+import { AdminFrame } from "../AdminFrame";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { controlClass } from "@/components/ui/input";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Notice } from "@/components/ui/notice";
 
 type Role = "USER" | "ADMIN" | "INSTALLER";
 
@@ -84,123 +89,96 @@ export default function ConfigurePage() {
   }
 
   return (
-      <main className="admin-shell">
-      <header className="admin-hero">
-        <div>
-          <p className="eyebrow">Configure</p>
-          <h1>Users and roles</h1>
-          <p>Create internal staff users for purchase capture and admin access.</p>
-        </div>
-        <div className="admin-link-row">
-          <Link className="admin-link" href="/admin">
-            Dashboard
-          </Link>
-          <Link className="admin-link" href="/purchase">
-            Capture app
-          </Link>
-          <AdminLogoutButton />
-        </div>
-      </header>
+    <AdminFrame kicker="People" title="Staff">
+      {message ? <Notice>{message}</Notice> : null}
 
-      {message && <p className="submit-message configure-message">{message}</p>}
-
-      <section className="configure-grid">
-        <form className="configure-card" onSubmit={createUser}>
-          <p className="screen-kicker">New user</p>
-          <h2>Create staff login</h2>
-
-          <label className="field">
-            Full name
-            <input
+      <section className="grid gap-4 lg:grid-cols-[minmax(280px,0.8fr)_minmax(0,1.2fr)]">
+        <form className="grid h-fit gap-4 rounded-xl border bg-card p-5" onSubmit={createUser}>
+          <h2 className="text-base font-semibold tracking-tight">New login</h2>
+          <div className="grid gap-2">
+            <Label htmlFor="staff-name">Full name</Label>
+            <Input
+              id="staff-name"
+              onChange={(event) => setForm({ ...form, name: event.target.value })}
+              placeholder="Raymond Adams"
               required
               value={form.name}
-              onChange={(event) => setForm({ ...form, name: event.target.value })}
-              placeholder="Example: Raymond Adams"
             />
-          </label>
-
-          <label className="field">
-            Username
-            <input
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="staff-username">Username</Label>
+            <Input
+              id="staff-username"
+              onChange={(event) => setForm({ ...form, username: event.target.value })}
+              placeholder="raymond"
               required
               value={form.username}
-              onChange={(event) =>
-                setForm({ ...form, username: event.target.value })
-              }
-              placeholder="example: raymond"
             />
-          </label>
-
-          <label className="field">
-            Email optional
-            <input
-              type="email"
-              value={form.email}
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="staff-email">Email</Label>
+            <Input
+              id="staff-email"
               onChange={(event) => setForm({ ...form, email: event.target.value })}
               placeholder="name@company.co.za"
+              type="email"
+              value={form.email}
             />
-          </label>
-
-          <label className="field">
-            Password
-            <input
-              required
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="staff-password">Password</Label>
+            <Input
+              id="staff-password"
               minLength={6}
+              onChange={(event) => setForm({ ...form, password: event.target.value })}
+              placeholder="Minimum 6 characters"
+              required
               type="password"
               value={form.password}
-              onChange={(event) =>
-                setForm({ ...form, password: event.target.value })
-              }
-              placeholder="Minimum 6 characters"
             />
-          </label>
-
-          <label className="field">
-            Role
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="staff-role">Role</Label>
             <select
-              value={form.role}
+              className={controlClass}
+              id="staff-role"
               onChange={(event) => setForm({ ...form, role: event.target.value as Role })}
+              value={form.role}
             >
               <option value="USER">User</option>
               <option value="ADMIN">Admin</option>
             </select>
-          </label>
-
-          <button className="primary-button" disabled={saving} type="submit">
+          </div>
+          <Button disabled={saving} type="submit">
             {saving ? "Saving..." : "Create user"}
-          </button>
+          </Button>
         </form>
 
-        <section className="configure-card">
-          <div className="panel-heading">
-            <div>
-              <p className="screen-kicker">Staff</p>
-              <h2>Current users</h2>
-            </div>
-            {loading && <span>Loading...</span>}
+        <section className="rounded-xl border bg-card p-5">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-base font-semibold tracking-tight">Current users</h2>
+            {loading ? <span className="text-sm text-muted-foreground">Loading...</span> : null}
           </div>
-
-          <div className="user-list">
+          <div className="grid gap-2">
             {users.map((user) => (
-              <article className="user-row" key={user.id}>
+              <article className="flex items-center justify-between gap-3 rounded-lg border p-3 text-sm" key={user.id}>
                 <div>
-                  <strong>{user.name}</strong>
-                  <span>@{user.username}</span>
+                  <p className="font-medium">{user.name}</p>
+                  <p className="text-muted-foreground">@{user.username}</p>
+                  <p className="text-muted-foreground">{user.email || "No email"}</p>
                 </div>
-                <span>{user.email || "No email"}</span>
-                <strong>{getRoleLabel(user.role)}</strong>
+                <Badge variant="outline">{getRoleLabel(user.role)}</Badge>
               </article>
             ))}
-
-            {!loading && users.length === 0 && (
-              <p className="empty-list">No users created yet.</p>
-            )}
+            {!loading && users.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No users created yet.</p>
+            ) : null}
           </div>
         </section>
       </section>
 
       <LoginTracePanel />
-      </main>
+    </AdminFrame>
   );
 }
 
@@ -239,39 +217,34 @@ function LoginTracePanel() {
   }, []);
 
   return (
-    <section className="configure-card login-trace-card">
-      <div className="panel-heading">
-        <div>
-          <p className="screen-kicker">Trace</p>
-          <h2>User logins</h2>
-        </div>
-        {loading && <span>Loading...</span>}
+    <section className="rounded-xl border bg-card p-5">
+      <div className="mb-4 flex items-center justify-between">
+        <h2 className="text-base font-semibold tracking-tight">Recent sign-ins</h2>
+        {loading ? <span className="text-sm text-muted-foreground">Loading...</span> : null}
       </div>
-
-      <div className="user-list">
+      <div className="grid gap-2">
         {events.map((event) => (
-          <article className="user-row" key={event.id}>
+          <article className="flex items-center justify-between gap-3 rounded-lg border p-3 text-sm" key={event.id}>
             <div>
-              <strong>
+              <p className="font-medium">
                 {event.user?.name || event.username} @{event.username}
-              </strong>
-              <span>
-                {event.source} {event.success ? "success" : "failed"}
-              </span>
+              </p>
+              <p className="text-muted-foreground">
+                {event.source} · {event.success ? "signed in" : "failed"}
+                {event.role ? ` · ${getRoleLabel(event.role)}` : ""}
+              </p>
             </div>
-            <span>{event.role ? getRoleLabel(event.role) : "Unknown"}</span>
-            <strong>
+            <span className="text-muted-foreground">
               {new Intl.DateTimeFormat("en-ZA", {
                 dateStyle: "medium",
                 timeStyle: "short",
               }).format(new Date(event.createdAt))}
-            </strong>
+            </span>
           </article>
         ))}
-
-        {!loading && events.length === 0 && (
-          <p className="empty-list">No login events recorded yet.</p>
-        )}
+        {!loading && events.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No sign-ins recorded yet.</p>
+        ) : null}
       </div>
     </section>
   );

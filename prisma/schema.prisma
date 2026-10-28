@@ -15,6 +15,9 @@ model User {
   role         UserRole     @default(USER)
   purchases    Purchase[]
   loginEvents  LoginEvent[]
+  assignedJobs Job[]
+  jobNotes     JobNote[]
+  invoices     Invoice[]
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 }
@@ -48,6 +51,10 @@ model Purchase {
   itemImageMimeType String
   itemImageBytes    Bytes
 
+  jobId             String?
+  job               Job?     @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  invoiceItems      InvoiceItem[]
+
   purchasedAt       DateTime @default(now())
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
@@ -68,4 +75,71 @@ enum UserRole {
   USER
   INSTALLER
   ADMIN
+}
+
+enum JobStatus {
+  TODO
+  ACTIVE
+  COMPLETE
+}
+
+enum InvoiceItemKind {
+  LABOUR
+  MATERIALS
+  TOOLS
+}
+
+model Job {
+  id             String     @id @default(cuid())
+  title          String
+  customerName   String
+  customerPhone  String?
+  customerEmail  String?
+  address        String
+  status         JobStatus  @default(TODO)
+  assignedUserId String?
+  assignedUser   User?      @relation(fields: [assignedUserId], references: [id])
+  notes          JobNote[]
+  invoices       Invoice[]
+  purchases      Purchase[]
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+}
+
+model JobNote {
+  id             String   @id @default(cuid())
+  jobId          String
+  job            Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  userId         String?
+  user           User?    @relation(fields: [userId], references: [id])
+  text           String
+  source         String
+  latitude       Float?
+  longitude      Float?
+  locationStatus String?
+  createdAt      DateTime @default(now())
+}
+
+model Invoice {
+  id          String        @id @default(cuid())
+  jobId       String
+  job         Job           @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  number      String        @unique
+  createdById String?
+  createdBy   User?         @relation(fields: [createdById], references: [id])
+  items       InvoiceItem[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+model InvoiceItem {
+  id          String          @id @default(cuid())
+  invoiceId   String
+  invoice     Invoice         @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  purchaseId  String?         @unique
+  purchase    Purchase?       @relation(fields: [purchaseId], references: [id], onDelete: SetNull)
+  kind        InvoiceItemKind
+  description String
+  amount      Float
+  createdAt   DateTime        @default(now())
 }

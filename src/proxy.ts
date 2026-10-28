@@ -6,23 +6,26 @@ export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const user = await verifyJwt(request.cookies.get(authCookieName)?.value);
 
-  if (pathname === "/") {
-    return NextResponse.redirect(new URL("/purchase", request.url));
-  }
-
-  const isPurchasePath = pathname === "/purchase" || pathname.startsWith("/purchase/");
+  const isFieldPath =
+    pathname === "/" ||
+    pathname === "/purchase" ||
+    pathname.startsWith("/purchase/") ||
+    pathname === "/installations" ||
+    pathname.startsWith("/installations/") ||
+    pathname === "/invoices" ||
+    pathname.startsWith("/invoices/");
   const isPurchaseLogin = pathname === "/login";
   const isAdminPath = pathname === "/admin" || pathname.startsWith("/admin/");
   const isAdminLogin = pathname === "/admin/login";
 
-  if (isPurchasePath && !user) {
+  if (isFieldPath && !user) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("next", pathname);
     return NextResponse.redirect(loginUrl);
   }
 
   if (isPurchaseLogin && user) {
-    return NextResponse.redirect(new URL("/purchase", request.url));
+    return NextResponse.redirect(new URL("/", request.url));
   }
 
   if (isAdminPath && !isAdminLogin && user?.role !== "ADMIN") {
@@ -39,5 +42,16 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/", "/purchase", "/purchase/:path*", "/login", "/admin", "/admin/:path*"],
+  matcher: [
+    "/",
+    "/purchase",
+    "/purchase/:path*",
+    "/installations",
+    "/installations/:path*",
+    "/invoices",
+    "/invoices/:path*",
+    "/login",
+    "/admin",
+    "/admin/:path*",
+  ],
 };
