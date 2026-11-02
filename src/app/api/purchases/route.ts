@@ -15,6 +15,12 @@ type PurchasePayload = {
   cardBank?: string;
   cardLastFour?: string;
   description: string;
+  slipTotal?: string;
+  slipAmount?: string;
+  slipRefunds?: string;
+  slipDateTime?: string;
+  slipCard?: string;
+  slipNotes?: string;
   jobId?: string | null;
   latitude?: number;
   longitude?: number;
@@ -129,6 +135,12 @@ export async function POST(request: Request) {
         cardBank: payload.cardBank,
         cardLastFour: payload.cardLastFour ?? getLastFour(payload.cardLabel),
         description: payload.description,
+        slipTotal: payload.slipTotal?.trim() || null,
+        slipAmount: payload.slipAmount?.trim() || null,
+        slipRefunds: payload.slipRefunds?.trim() || null,
+        slipDateTime: payload.slipDateTime?.trim() || null,
+        slipCard: payload.slipCard?.trim() || null,
+        slipNotes: payload.slipNotes?.trim() || null,
         jobId: payload.jobId || null,
         latitude: payload.latitude,
         longitude: payload.longitude,
@@ -204,6 +216,12 @@ export async function GET() {
       cardLabel: true,
       cardLastFour: true,
       description: true,
+      slipTotal: true,
+      slipAmount: true,
+      slipRefunds: true,
+      slipDateTime: true,
+      slipCard: true,
+      slipNotes: true,
       jobId: true,
       latitude: true,
       longitude: true,

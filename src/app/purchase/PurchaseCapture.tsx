@@ -3,6 +3,7 @@
 import { ChangeEvent, ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { Camera } from "lucide-react";
 import { FieldShell } from "@/components/field/field-shell";
+import { parseSlipText } from "@/lib/slip-fields";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -120,6 +121,11 @@ export default function Home() {
   const [jobs, setJobs] = useState<JobOption[]>([]);
   const [jobId, setJobId] = useState("");
   const [slipNote, setSlipNote] = useState("");
+  const [slipTotal, setSlipTotal] = useState("");
+  const [slipAmount, setSlipAmount] = useState("");
+  const [slipRefunds, setSlipRefunds] = useState("");
+  const [slipDateTime, setSlipDateTime] = useState("");
+  const [slipCard, setSlipCard] = useState("");
   const [slipNotes, setSlipNotes] = useState("");
   const [ocrCapture, setOcrCapture] = useState<OcrCapture | null>(null);
   const ocrRequest = useRef(0);
@@ -249,6 +255,11 @@ export default function Home() {
       setSlipPhoto(null);
       setSlipNote("");
       setSlipNotes("");
+      setSlipTotal("");
+      setSlipAmount("");
+      setSlipRefunds("");
+      setSlipDateTime("");
+      setSlipCard("");
       setOcrCapture(null);
       if (filledByOcr.current) {
         filledByOcr.current = false;
@@ -314,6 +325,11 @@ export default function Home() {
     setDescription("");
     setSlipNote("");
     setSlipNotes("");
+    setSlipTotal("");
+    setSlipAmount("");
+    setSlipRefunds("");
+    setSlipDateTime("");
+    setSlipCard("");
     setOcrCapture(null);
     filledByOcr.current = false;
     ocrRequest.current += 1;
@@ -342,6 +358,14 @@ export default function Home() {
         words?: { text: string; score: number }[];
         imageWidth?: number | null;
         imageHeight?: number | null;
+        fields?: {
+          total: string;
+          amount: string;
+          refunds: string;
+          dateTime: string;
+          card: string;
+          notes: string;
+        };
       };
 
       if (requestId !== ocrRequest.current) {
@@ -355,7 +379,25 @@ export default function Home() {
       }
 
       const text = data.text?.trim() ?? "";
-      setSlipNotes(text);
+      const fields = data.fields ?? parseSlipText(text);
+      setSlipTotal(fields.total);
+      setSlipAmount(fields.amount);
+      setSlipRefunds(fields.refunds);
+      setSlipDateTime(fields.dateTime);
+      setSlipCard(fields.card);
+      setSlipNotes(fields.notes);
+      const lastFour = fields.card.replace(/\D/g, "").slice(-4);
+      const knownCard = lastFour ? businessCards.find((name) => name.includes(lastFour)) : undefined;
+      if (knownCard) {
+        setBusinessCard(knownCard);
+      }
+      const summary = [
+        fields.total && `Total ${fields.total}`,
+        fields.amount && `Amount ${fields.amount}`,
+        fields.refunds && `Refund ${fields.refunds}`,
+      ]
+        .filter(Boolean)
+        .join(", ");
       setOcrCapture({
         text,
         requestId: data.requestId ?? "",
@@ -364,8 +406,8 @@ export default function Home() {
         imageHeight: data.imageHeight ?? null,
         file: prepared,
       });
-      setDescription((current) => (current.trim() && !filledByOcr.current ? current : text));
-      filledByOcr.current = Boolean(text);
+      setDescription((current) => (current.trim() && !filledByOcr.current ? current : summary));
+      filledByOcr.current = Boolean(summary);
       setSlipNote(text ? "Filled from the slip. You can edit it before saving." : "No text found on the slip.");
     } catch {
       if (requestId !== ocrRequest.current) {
@@ -427,6 +469,12 @@ export default function Home() {
           customShop: shop === "Other shop",
           cardLabel: selectedCard,
           description,
+          slipTotal,
+          slipAmount,
+          slipRefunds,
+          slipDateTime,
+          slipCard,
+          slipNotes,
           jobId: jobId || null,
           latitude: coordinates.latitude,
           longitude: coordinates.longitude,
@@ -445,7 +493,7 @@ export default function Home() {
           },
           ocr: ocrCapture
             ? {
-                text: slipNotes,
+                text: ocrCapture.text,
                 requestId: ocrCapture.requestId,
                 words: ocrCapture.words,
                 imageWidth: ocrCapture.imageWidth,
@@ -647,21 +695,22 @@ export default function Home() {
               photo={slipPhoto}
             >
               {slipPhoto ? (
-                <div className="grid gap-2">
-                  <Label htmlFor="slip-notes">Notes</Label>
-                  <Textarea
-                    id="slip-notes"
-                    onChange={(event) => {
-                      const value = event.target.value;
-                      setSlipNotes(value);
-                      if (filledByOcr.current) {
-                        setDescription(value);
-                      }
-                    }}
-                    placeholder={slipNote === "Reading the slip..." ? "Reading the slip..." : "Notes from the slip"}
-                    rows={5}
-                    value={slipNotes}
-                  />
+                <div className="grid gap-3">
+                  <SlipField id="slip-total" label="Total" onChange={setSlipTotal} value={slipTotal} />
+                  <SlipField id="slip-amount" label="Amount" onChange={setSlipAmount} value={slipAmount} />
+                  <SlipField id="slip-refunds" label="Refunds" onChange={setSlipRefunds} value={slipRefunds} />
+                  <SlipField id="slip-when" label="Date and time" onChange={setSlipDateTime} value={slipDateTime} />
+                  <SlipField id="slip-card" label="Card" onChange={setSlipCard} value={slipCard} />
+                  <div className="grid gap-2">
+                    <Label htmlFor="slip-notes">Notes</Label>
+                    <Textarea
+                      id="slip-notes"
+                      onChange={(event) => setSlipNotes(event.target.value)}
+                      placeholder={slipNote === "Reading the slip..." ? "Reading the slip..." : "The rest of the slip"}
+                      rows={4}
+                      value={slipNotes}
+                    />
+                  </div>
                   {slipNote ? <p className="text-sm text-muted-foreground">{slipNote}</p> : null}
                 </div>
               ) : null}
@@ -781,6 +830,11 @@ export default function Home() {
               <Row label="Slip" value={slipLabel} />
               <Row label="Item photo" value={itemLabel} />
               <Row label="Description" value={description} />
+              <Row label="Total" value={slipTotal || "Not found"} />
+              <Row label="Amount" value={slipAmount || "Not found"} />
+              <Row label="Refunds" value={slipRefunds || "Not found"} />
+              <Row label="Date and time" value={slipDateTime || "Not found"} />
+              <Row label="Slip card" value={slipCard || "Not found"} />
               <Row label="Notes" value={slipNotes || "None"} />
               <Row
                 label="Job"
@@ -798,6 +852,25 @@ export default function Home() {
           </section>
         )}
     </FieldShell>
+  );
+}
+
+function SlipField({
+  id,
+  label,
+  onChange,
+  value,
+}: {
+  id: string;
+  label: string;
+  onChange: (value: string) => void;
+  value: string;
+}) {
+  return (
+    <div className="grid gap-2">
+      <Label htmlFor={id}>{label}</Label>
+      <Input id={id} onChange={(event) => onChange(event.target.value)} value={value} />
+    </div>
   );
 }
 

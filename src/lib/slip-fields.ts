@@ -1,0 +1,250 @@
+export type SlipFields = {
+  total: string;
+  amount: string;
+  refunds: string;
+  dateTime: string;
+  card: string;
+  notes: string;
+};
+
+type Span = {
+  start: number;
+  end: number;
+};
+
+const moneySource = String.raw`(?:R|ZAR|\$)\s*\d{1,3}(?:[ ,]\d{3})*[.,]\d{2}|\d{1,3}(?:[ ,]\d{3})*[.,]\d{2}`;
+const moneyInText = new RegExp(moneySource, "i");
+const moneyBefore = new RegExp(String.raw`(${moneySource})\s*$`, "i");
+const currencyMoney = /(?:R|ZAR|\$)\s*\d{1,3}(?:[ ,]\d{3})*[.,]\d{2}/gi;
+
+export function parseSlipText(text: string): SlipFields {
+  const source = normalizeSlipText(text);
+  const taken: Span[] = [];
+
+  const refunds = takeLabeledMoney(source, /\b(?:refunds?|change)\b/gi, taken, "first");
+  let total = takeLabeledMoney(
+    source,
+    /\b(?:grand\s+total|total\s+due|amount\s+due|balance\s+due|total)\b/gi,
+    taken,
+    "last",
+  );
+  const amount = takeLabeledMoney(
+    source,
+    /\b(?:sub\s*total|subtotal|amount\s+given|token\s+amount|amount|amt)\b/gi,
+    taken,
+    "last",
+  );
+
+  if (!total) {
+    total =
+      takeLabeledMoney(source, /\bamount\s+given\b/gi, taken, "first") ??
+      takeFirstCurrency(source, taken) ??
+      (amount ? { value: amount.value, span: amount.span } : null);
+  }
+  const dateTime = takeDateTime(source, taken);
+  const card = takeCard(source, taken);
+
+  return {
+    total: total?.value ?? "",
+    amount: amount?.value ?? "",
+    refunds: refunds?.value ?? "",
+    dateTime: dateTime?.value ?? "",
+    card: card?.value ?? "",
+    notes: remainder(source, taken),
+  };
+}
+
+function normalizeSlipText(text: string) {
+  return text
+    .replace(/[\u00a0\u2000-\u200b\u202f\ufeff]/g, " ")
+    .replace(/[＄﹩]/g, "$")
+    .replace(/[，]/g, ",")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function takeLabeledMoney(text: string, label: RegExp, taken: Span[], which: "first" | "last") {
+  const found: { value: string; span: Span }[] = [];
+
+  for (const match of text.matchAll(label)) {
+    const start = match.index ?? 0;
+    const end = start + match[0].length;
+    if (overlaps({ start, end }, taken) || isSubtotalWord(text, start, match[0])) {
+      continue;
+    }
+
+    const windowText = text.slice(end, Math.min(text.length, end + 64));
+    const after = windowText.match(moneyInText);
+    if (after?.[0]) {
+      const value = tidyMoney(after[0]);
+      const span = { start, end: end + after.index! + after[0].length };
+      if (!overlaps(span, taken)) {
+        found.push({ value, span });
+      }
+      continue;
+    }
+
+    const beforeStart = Math.max(0, start - 32);
+    const before = text.slice(beforeStart, start).match(moneyBefore);
+    if (!before?.[1]) {
+      continue;
+    }
+
+    const value = tidyMoney(before[1]);
+    const span = { start: start - before[0].length, end };
+    if (!overlaps(span, taken)) {
+      found.push({ value, span });
+    }
+  }
+
+  const picked = which === "last" ? found.at(-1) : found[0];
+  if (!picked) {
+    return null;
+  }
+
+  taken.push(picked.span);
+  return picked;
+}
+
+function takeFirstCurrency(text: string, taken: Span[]) {
+  for (const match of text.matchAll(currencyMoney)) {
+    const span = spanOf(match);
+    if (overlaps(span, taken)) {
+      continue;
+    }
+
+    taken.push(span);
+    return { value: tidyMoney(match[0]), span };
+  }
+
+  return null;
+}
+
+function isSubtotalWord(text: string, index: number, word: string) {
+  if (!/^total$/i.test(word)) {
+    return false;
+  }
+
+  return /sub\s*$/i.test(text.slice(Math.max(0, index - 4), index));
+}
+
+function takeDateTime(text: string, taken: Span[]) {
+  const dateMatch = nearest(
+    [...text.matchAll(/\b(\d{4}[-/]\d{1,2}[-/]\d{1,2}|\d{1,2}[-/]\d{1,2}[-/]\d{2,4})\b/g)],
+    text,
+    /\bdate\b/i,
+    taken,
+  );
+  const timeMatch = nearest(
+    [...text.matchAll(/\b(\d{1,2}:\d{2}(?::\d{2})?(?:\s?[AP]M)?)\b/gi)],
+    text,
+    /\btime\b/i,
+    taken,
+  );
+
+  if (!dateMatch && !timeMatch) {
+    return null;
+  }
+
+  const spans = [dateMatch, timeMatch].filter((match): match is RegExpMatchArray => Boolean(match));
+  for (const match of spans) {
+    taken.push(spanWithHint(text, match, match === dateMatch ? /\bdate\b/i : /\btime\b/i));
+  }
+
+  const value = [dateMatch?.[1], timeMatch?.[1]?.toUpperCase()].filter(Boolean).join(" ");
+  return { value };
+}
+
+function takeCard(text: string, taken: Span[]) {
+  const brand = [...text.matchAll(/\b(visa|mastercard|master\s*card|amex|american\s+express|diners)\b/gi)].find(
+    (match) => !overlaps(spanOf(match), taken),
+  );
+  const masked = [...text.matchAll(/((?:\*{2,}|x{2,})\s*\d{4})/gi)].find(
+    (match) => !overlaps(spanOf(match), taken),
+  );
+  const labeled = [...text.matchAll(/\bcard(?:\s*(?:no|number|#))?\s*[:\-]?\s*(\d{4})\b/gi)].find(
+    (match) => !overlaps(spanOf(match), taken),
+  );
+
+  if (!brand && !masked && !labeled) {
+    return null;
+  }
+
+  for (const match of [brand, masked, labeled]) {
+    if (match) {
+      taken.push(spanOf(match));
+    }
+  }
+
+  const lastFour = (masked?.[1] || labeled?.[1] || "").replace(/\D/g, "").slice(-4);
+  const brandName = brand ? brand[1].replace(/\s+/g, " ").toUpperCase() : "";
+  const maskedText = masked ? masked[1].replace(/\s+/g, " ").toUpperCase() : lastFour ? `**** ${lastFour}` : "";
+  const value = [brandName, maskedText].filter(Boolean).join(" ").trim();
+
+  return { value };
+}
+
+function nearest(matches: RegExpMatchArray[], text: string, hint: RegExp, taken: Span[]) {
+  const available = matches.filter((match) => !overlaps(spanOf(match), taken));
+  const hintMatch = hint.exec(text);
+  if (!hintMatch || available.length === 0) {
+    return available[0];
+  }
+
+  const hintAt = hintMatch.index ?? 0;
+  return available.reduce((closest, match) => {
+    const distance = Math.abs((match.index ?? 0) - hintAt);
+    const closestDistance = Math.abs((closest.index ?? 0) - hintAt);
+    return distance < closestDistance ? match : closest;
+  });
+}
+
+function spanOf(match: RegExpMatchArray): Span {
+  const start = match.index ?? 0;
+  return { start, end: start + match[0].length };
+}
+
+function spanWithHint(text: string, match: RegExpMatchArray, hint: RegExp): Span {
+  const start = match.index ?? 0;
+  const end = start + match[0].length;
+  const before = text.slice(Math.max(0, start - 16), start);
+  const hintMatch = before.match(new RegExp(`${hint.source}\\s*[:\\-]?\\s*$`, "i"));
+
+  return hintMatch ? { start: start - hintMatch[0].length, end } : { start, end };
+}
+
+function overlaps(span: Span, taken: Span[]) {
+  return taken.some((item) => span.start < item.end && span.end > item.start);
+}
+
+function tidyMoney(value: string) {
+  const compact = value.replace(/\s+/g, "");
+
+  if (/^zar/i.test(compact)) {
+    return `R ${compact.slice(3)}`;
+  }
+
+  if (/^r/i.test(compact)) {
+    return `R ${compact.slice(1)}`;
+  }
+
+  if (compact.startsWith("$")) {
+    return `$ ${compact.slice(1)}`;
+  }
+
+  return compact;
+}
+
+function remainder(text: string, taken: Span[]) {
+  const chars = [...text];
+  for (const span of taken) {
+    for (let index = span.start; index < span.end && index < chars.length; index += 1) {
+      chars[index] = " ";
+    }
+  }
+
+  return chars
+    .join("")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}

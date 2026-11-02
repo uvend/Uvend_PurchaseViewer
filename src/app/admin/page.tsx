@@ -15,6 +15,12 @@ type Purchase = {
   cardLabel: string;
   cardLastFour: string | null;
   description: string;
+  slipTotal: string | null;
+  slipAmount: string | null;
+  slipRefunds: string | null;
+  slipDateTime: string | null;
+  slipCard: string | null;
+  slipNotes: string | null;
   latitude: number | null;
   longitude: number | null;
   locationStatus: string | null;
@@ -197,9 +203,7 @@ export default function AdminDashboard() {
                   {isOpen ? (
                     <div className="grid gap-2 px-3 pb-3 text-sm">
                       <p>{purchase.description}</p>
-                      {purchase.ocrText ? (
-                        <p className="text-muted-foreground">OCR: {purchase.ocrText}</p>
-                      ) : null}
+                      <SlipFacts purchase={purchase} />
                       {purchase.ocrRequestId ? (
                         <p className="text-muted-foreground">OCR request: {purchase.ocrRequestId}</p>
                       ) : null}
@@ -257,7 +261,7 @@ export default function AdminDashboard() {
               <div>
                 <strong>{purchase.shopName}</strong>
                 <p className="text-muted-foreground">{purchase.description}</p>
-                {purchase.ocrText ? <p className="text-muted-foreground">OCR: {purchase.ocrText}</p> : null}
+                <SlipFacts purchase={purchase} />
               </div>
               <span>{purchase.cardLabel}</span>
               <span>{getUserLabel(purchase)}</span>
@@ -289,6 +293,27 @@ export default function AdminDashboard() {
         </div>
       </section>
     </AdminFrame>
+  );
+}
+
+function SlipFacts({ purchase }: { purchase: Purchase }) {
+  const facts = [
+    purchase.slipTotal && `Total ${purchase.slipTotal}`,
+    purchase.slipAmount && `Amount ${purchase.slipAmount}`,
+    purchase.slipRefunds && `Refunds ${purchase.slipRefunds}`,
+    purchase.slipDateTime,
+    purchase.slipCard,
+  ].filter(Boolean);
+
+  if (facts.length === 0 && !purchase.slipNotes) {
+    return null;
+  }
+
+  return (
+    <div className="grid gap-1 text-muted-foreground">
+      {facts.length > 0 ? <p>{facts.join(" · ")}</p> : null}
+      {purchase.slipNotes ? <p>{purchase.slipNotes}</p> : null}
+    </div>
   );
 }
 

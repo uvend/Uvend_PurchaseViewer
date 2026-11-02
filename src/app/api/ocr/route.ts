@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { EasyOcrError, recognizeImage } from "@/lib/easyocr";
+import { parseSlipText } from "@/lib/slip-fields";
 
 export async function POST(request: Request) {
   const user = await requireUser();
@@ -18,7 +19,10 @@ export async function POST(request: Request) {
 
   try {
     const result = await recognizeImage(file);
-    return NextResponse.json(result);
+    return NextResponse.json({
+      ...result,
+      fields: parseSlipText(result.text),
+    });
   } catch (error) {
     if (error instanceof EasyOcrError) {
       return NextResponse.json(

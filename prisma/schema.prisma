@@ -46,6 +46,13 @@ model Purchase {
   ocrImageMimeType  String?
   ocrImageBytes     Bytes?
 
+  slipTotal         String?
+  slipAmount        String?
+  slipRefunds       String?
+  slipDateTime      String?
+  slipCard          String?
+  slipNotes         String?  @db.Text
+
   latitude          Float?
   longitude         Float?
   locationStatus    String?
