@@ -23,6 +23,14 @@ type PurchasePayload = {
   slipImage: ImagePayload;
   itemLabel: string;
   itemImage: ImagePayload;
+  ocr?: {
+    text: string;
+    requestId?: string;
+    words?: { text: string; score: number }[];
+    imageWidth?: number | null;
+    imageHeight?: number | null;
+    image: ImagePayload;
+  };
 };
 
 function imageBytesFromBase64(image: ImagePayload) {
@@ -133,6 +141,14 @@ export async function POST(request: Request) {
         itemImageName: payload.itemImage.fileName,
         itemImageMimeType: payload.itemImage.mimeType,
         itemImageBytes: imageBytesFromBase64(payload.itemImage),
+        ocrText: payload.ocr?.text ?? null,
+        ocrRequestId: payload.ocr?.requestId || null,
+        ocrWords: payload.ocr?.words ?? undefined,
+        ocrImageWidth: payload.ocr?.imageWidth ?? null,
+        ocrImageHeight: payload.ocr?.imageHeight ?? null,
+        ocrImageName: payload.ocr?.image.fileName ?? null,
+        ocrImageMimeType: payload.ocr?.image.mimeType ?? null,
+        ocrImageBytes: payload.ocr ? imageBytesFromBase64(payload.ocr.image) : null,
       },
       select: {
         id: true,
@@ -196,6 +212,12 @@ export async function GET() {
       slipImageName: true,
       itemLabel: true,
       itemImageName: true,
+      ocrText: true,
+      ocrRequestId: true,
+      ocrWords: true,
+      ocrImageWidth: true,
+      ocrImageHeight: true,
+      ocrImageName: true,
       purchasedAt: true,
       createdAt: true,
       job: {
@@ -228,6 +250,7 @@ export async function GET() {
       downloads: {
         slip: `/api/purchases/${purchase.id}/images/slip`,
         item: `/api/purchases/${purchase.id}/images/item`,
+        ocr: purchase.ocrImageName ? `/api/purchases/${purchase.id}/images/ocr` : null,
       },
     })),
   });

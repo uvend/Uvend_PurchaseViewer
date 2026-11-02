@@ -37,6 +37,15 @@ model Purchase {
 
   description       String
 
+  ocrText           String?  @db.Text
+  ocrRequestId      String?
+  ocrWords          Json?
+  ocrImageWidth     Int?
+  ocrImageHeight    Int?
+  ocrImageName      String?
+  ocrImageMimeType  String?
+  ocrImageBytes     Bytes?
+
   latitude          Float?
   longitude         Float?
   locationStatus    String?

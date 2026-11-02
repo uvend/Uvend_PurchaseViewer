@@ -22,6 +22,8 @@ type Purchase = {
   slipImageName: string;
   itemLabel: string;
   itemImageName: string;
+  ocrText: string | null;
+  ocrRequestId: string | null;
   purchasedAt: string;
   createdAt: string;
   user: {
@@ -34,6 +36,7 @@ type Purchase = {
   downloads: {
     slip: string;
     item: string;
+    ocr: string | null;
   };
 };
 
@@ -194,6 +197,12 @@ export default function AdminDashboard() {
                   {isOpen ? (
                     <div className="grid gap-2 px-3 pb-3 text-sm">
                       <p>{purchase.description}</p>
+                      {purchase.ocrText ? (
+                        <p className="text-muted-foreground">OCR: {purchase.ocrText}</p>
+                      ) : null}
+                      {purchase.ocrRequestId ? (
+                        <p className="text-muted-foreground">OCR request: {purchase.ocrRequestId}</p>
+                      ) : null}
                       <p className="text-muted-foreground">Card: {purchase.cardLabel}</p>
                       <p className="text-muted-foreground">
                         {purchase.locationStatus || "No location status"}
@@ -214,6 +223,13 @@ export default function AdminDashboard() {
                             Item
                           </a>
                         </Button>
+                        {purchase.downloads.ocr ? (
+                          <Button asChild size="sm" variant="outline">
+                            <a href={purchase.downloads.ocr} rel="noreferrer" target="_blank">
+                              OCR image
+                            </a>
+                          </Button>
+                        ) : null}
                       </div>
                     </div>
                   ) : null}
@@ -241,6 +257,7 @@ export default function AdminDashboard() {
               <div>
                 <strong>{purchase.shopName}</strong>
                 <p className="text-muted-foreground">{purchase.description}</p>
+                {purchase.ocrText ? <p className="text-muted-foreground">OCR: {purchase.ocrText}</p> : null}
               </div>
               <span>{purchase.cardLabel}</span>
               <span>{getUserLabel(purchase)}</span>
@@ -256,6 +273,13 @@ export default function AdminDashboard() {
                     Item
                   </a>
                 </Button>
+                {purchase.downloads.ocr ? (
+                  <Button asChild size="sm" variant="outline">
+                    <a href={purchase.downloads.ocr} rel="noreferrer" target="_blank">
+                      OCR image
+                    </a>
+                  </Button>
+                ) : null}
               </div>
             </article>
           ))}

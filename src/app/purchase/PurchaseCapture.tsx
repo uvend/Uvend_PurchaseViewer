@@ -1,6 +1,6 @@
 "use client";
 
-import { ChangeEvent, useEffect, useMemo, useState } from "react";
+import { ChangeEvent, ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { Camera } from "lucide-react";
 import { FieldShell } from "@/components/field/field-shell";
 import { Button } from "@/components/ui/button";
@@ -30,6 +30,15 @@ type SignedInUser = {
   userId: string;
   username: string;
   role: "USER" | "ADMIN" | "INSTALLER";
+};
+
+type OcrCapture = {
+  text: string;
+  requestId: string;
+  words: { text: string; score: number }[];
+  imageWidth: number | null;
+  imageHeight: number | null;
+  file: File;
 };
 
 type JobOption = {
@@ -110,6 +119,11 @@ export default function Home() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [jobs, setJobs] = useState<JobOption[]>([]);
   const [jobId, setJobId] = useState("");
+  const [slipNote, setSlipNote] = useState("");
+  const [slipNotes, setSlipNotes] = useState("");
+  const [ocrCapture, setOcrCapture] = useState<OcrCapture | null>(null);
+  const ocrRequest = useRef(0);
+  const filledByOcr = useRef(false);
 
   const selectedShop =
     shop === ""
@@ -222,6 +236,7 @@ export default function Home() {
 
     if (captureKind === "slip") {
       setSlipPhoto(photo);
+      void readSlip(file);
       return;
     }
 
@@ -230,7 +245,15 @@ export default function Home() {
 
   function redoPhoto(captureKind: CaptureKind) {
     if (captureKind === "slip") {
+      ocrRequest.current += 1;
       setSlipPhoto(null);
+      setSlipNote("");
+      setSlipNotes("");
+      setOcrCapture(null);
+      if (filledByOcr.current) {
+        filledByOcr.current = false;
+        setDescription("");
+      }
       return;
     }
 
@@ -289,12 +312,69 @@ export default function Home() {
     setSlipLabel("Slip pic");
     setItemLabel("Item pic");
     setDescription("");
+    setSlipNote("");
+    setSlipNotes("");
+    setOcrCapture(null);
+    filledByOcr.current = false;
+    ocrRequest.current += 1;
     setLocation("");
     setManualLatitude("");
     setManualLongitude("");
     setLocationStatus("Location not captured yet");
     setSubmitMessage(message ?? "");
     setJobId("");
+  }
+
+  async function readSlip(file: File) {
+    const requestId = ocrRequest.current + 1;
+    ocrRequest.current = requestId;
+    setSlipNote("Reading the slip...");
+
+    try {
+      const prepared = await prepareSlipImage(file);
+      const body = new FormData();
+      body.append("file", prepared, "slip.jpg");
+      const response = await fetch("/api/ocr", { method: "POST", body });
+      const data = (await response.json()) as {
+        text?: string;
+        error?: string;
+        requestId?: string;
+        words?: { text: string; score: number }[];
+        imageWidth?: number | null;
+        imageHeight?: number | null;
+      };
+
+      if (requestId !== ocrRequest.current) {
+        return;
+      }
+
+      if (!response.ok) {
+        setOcrCapture(null);
+        setSlipNote(data.error || "Could not read the slip. Type it on the details step.");
+        return;
+      }
+
+      const text = data.text?.trim() ?? "";
+      setSlipNotes(text);
+      setOcrCapture({
+        text,
+        requestId: data.requestId ?? "",
+        words: data.words ?? [],
+        imageWidth: data.imageWidth ?? null,
+        imageHeight: data.imageHeight ?? null,
+        file: prepared,
+      });
+      setDescription((current) => (current.trim() && !filledByOcr.current ? current : text));
+      filledByOcr.current = Boolean(text);
+      setSlipNote(text ? "Filled from the slip. You can edit it before saving." : "No text found on the slip.");
+    } catch {
+      if (requestId !== ocrRequest.current) {
+        return;
+      }
+
+      setSlipNote("Could not read the slip. Type it on the details step.");
+      setOcrCapture(null);
+    }
   }
 
   function readFileAsBase64(file: File) {
@@ -363,6 +443,20 @@ export default function Home() {
             mimeType: itemPhoto.mimeType,
             base64: await readFileAsBase64(itemPhoto.file),
           },
+          ocr: ocrCapture
+            ? {
+                text: slipNotes,
+                requestId: ocrCapture.requestId,
+                words: ocrCapture.words,
+                imageWidth: ocrCapture.imageWidth,
+                imageHeight: ocrCapture.imageHeight,
+                image: {
+                  fileName: ocrCapture.file.name || "slip.jpg",
+                  mimeType: ocrCapture.file.type || "image/jpeg",
+                  base64: await readFileAsBase64(ocrCapture.file),
+                },
+              }
+            : undefined,
         }),
       });
 
@@ -543,14 +637,36 @@ export default function Home() {
         )}
 
         {step === 1 && (
-          <CaptureScreen
-            captureKind="slip"
-            heading="Photograph the slip"
-            helper="Photograph the card slip clearly."
-            onChange={handlePhotoChange}
-            onRedo={redoPhoto}
-            photo={slipPhoto}
-          />
+          <>
+            <CaptureScreen
+              captureKind="slip"
+              heading="Photograph the slip"
+              helper="Photograph the card slip clearly."
+              onChange={handlePhotoChange}
+              onRedo={redoPhoto}
+              photo={slipPhoto}
+            >
+              {slipPhoto ? (
+                <div className="grid gap-2">
+                  <Label htmlFor="slip-notes">Notes</Label>
+                  <Textarea
+                    id="slip-notes"
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      setSlipNotes(value);
+                      if (filledByOcr.current) {
+                        setDescription(value);
+                      }
+                    }}
+                    placeholder={slipNote === "Reading the slip..." ? "Reading the slip..." : "Notes from the slip"}
+                    rows={5}
+                    value={slipNotes}
+                  />
+                  {slipNote ? <p className="text-sm text-muted-foreground">{slipNote}</p> : null}
+                </div>
+              ) : null}
+            </CaptureScreen>
+          </>
         )}
 
         {step === 2 && (
@@ -665,6 +781,7 @@ export default function Home() {
               <Row label="Slip" value={slipLabel} />
               <Row label="Item photo" value={itemLabel} />
               <Row label="Description" value={description} />
+              <Row label="Notes" value={slipNotes || "None"} />
               <Row
                 label="Job"
                 value={jobs.find((job) => job.id === jobId)?.title ?? "No job card"}
@@ -691,6 +808,7 @@ function CaptureScreen({
   onChange,
   onRedo,
   photo,
+  children,
 }: {
   captureKind: CaptureKind;
   heading: string;
@@ -698,6 +816,7 @@ function CaptureScreen({
   onChange: (event: ChangeEvent<HTMLInputElement>, captureKind: CaptureKind) => void;
   onRedo: (captureKind: CaptureKind) => void;
   photo: PhotoState | null;
+  children?: ReactNode;
 }) {
   return (
     <section className="grid gap-4">
@@ -731,6 +850,8 @@ function CaptureScreen({
         />
       </label>
 
+      {children}
+
       {photo ? <p className="text-sm text-muted-foreground">{photo.fileName}</p> : null}
 
       <Button disabled={!photo} onClick={() => onRedo(captureKind)} type="button" variant="outline">
@@ -738,6 +859,41 @@ function CaptureScreen({
       </Button>
     </section>
   );
+}
+
+async function prepareSlipImage(file: File) {
+  const maxEdge = 1600;
+
+  try {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, maxEdge / Math.max(bitmap.width, bitmap.height));
+    const width = Math.max(1, Math.round(bitmap.width * scale));
+    const height = Math.max(1, Math.round(bitmap.height * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext("2d");
+
+    if (!context) {
+      bitmap.close();
+      return file;
+    }
+
+    context.drawImage(bitmap, 0, 0, width, height);
+    bitmap.close();
+
+    const blob = await new Promise<Blob | null>((resolve) => {
+      canvas.toBlob(resolve, "image/jpeg", 0.85);
+    });
+
+    if (!blob || blob.size > 3 * 1024 * 1024) {
+      return file;
+    }
+
+    return new File([blob], "slip.jpg", { type: "image/jpeg" });
+  } catch {
+    return file;
+  }
 }
 
 function Row({ label, value }: { label: string; value: string }) {

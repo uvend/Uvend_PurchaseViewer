@@ -18,7 +18,7 @@ export async function GET(_request: Request, context: RouteContext) {
 
   const { id, kind } = await context.params;
 
-  if (kind !== "slip" && kind !== "item") {
+  if (kind !== "slip" && kind !== "item" && kind !== "ocr") {
     return NextResponse.json({ error: "Unknown image type" }, { status: 400 });
   }
 
@@ -33,6 +33,9 @@ export async function GET(_request: Request, context: RouteContext) {
       itemImageBytes: true,
       itemImageMimeType: true,
       itemImageName: true,
+      ocrImageBytes: true,
+      ocrImageMimeType: true,
+      ocrImageName: true,
     },
   });
 
@@ -47,11 +50,21 @@ export async function GET(_request: Request, context: RouteContext) {
           mimeType: purchase.slipImageMimeType,
           fileName: purchase.slipImageName,
         }
-      : {
-          bytes: purchase.itemImageBytes,
-          mimeType: purchase.itemImageMimeType,
-          fileName: purchase.itemImageName,
-        };
+      : kind === "item"
+        ? {
+            bytes: purchase.itemImageBytes,
+            mimeType: purchase.itemImageMimeType,
+            fileName: purchase.itemImageName,
+          }
+        : {
+            bytes: purchase.ocrImageBytes,
+            mimeType: purchase.ocrImageMimeType,
+            fileName: purchase.ocrImageName,
+          };
+
+  if (!image.bytes || !image.mimeType || !image.fileName) {
+    return NextResponse.json({ error: "Image not found" }, { status: 404 });
+  }
 
   return new Response(image.bytes, {
     headers: {
