@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 
 export function AdminLogoutButton({
-  redirectTo = "/admin/login",
+  redirectTo = "/login",
   className,
 }: {
   redirectTo?: string;

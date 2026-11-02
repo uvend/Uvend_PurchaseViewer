@@ -12,7 +12,6 @@ type LoginPayload = {
 export async function POST(request: Request) {
   const payload = (await request.json()) as LoginPayload;
   const username = payload.username?.trim().toLowerCase();
-  const source = payload.source === "admin" ? "admin" : "purchase";
 
   if (!username || !payload.password) {
     return NextResponse.json(
@@ -37,6 +36,7 @@ export async function POST(request: Request) {
   const passwordOk = Boolean(
     user?.username && verifyPassword(payload.password, user.passwordHash),
   );
+  const source = user?.role === "ADMIN" ? "admin" : "purchase";
 
   if (!user || !passwordOk) {
     await prisma.loginEvent.create({
@@ -50,23 +50,6 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { error: "Invalid username or password" },
       { status: 401 },
-    );
-  }
-
-  if (source === "admin" && user.role !== "ADMIN") {
-    await prisma.loginEvent.create({
-      data: {
-        userId: user.id,
-        username: user.username ?? username,
-        role: user.role,
-        success: false,
-        source,
-      },
-    });
-
-    return NextResponse.json(
-      { error: "Admin access required" },
-      { status: 403 },
     );
   }
 

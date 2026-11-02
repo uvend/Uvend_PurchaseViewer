@@ -1,7 +1,11 @@
-"use client";
+import { redirect } from "next/navigation";
 
-import { AuthScreen } from "@/components/auth/auth-screen";
-
-export default function AdminLoginPage() {
-  return <AuthScreen mode="admin" />;
+export default async function AdminLoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ next?: string }>;
+}) {
+  const params = await searchParams;
+  const next = params.next?.startsWith("/") ? params.next : "";
+  redirect(next ? `/login?next=${encodeURIComponent(next)}` : "/login");
 }

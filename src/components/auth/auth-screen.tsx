@@ -1,24 +1,22 @@
 "use client";
 
 import { FormEvent, Suspense, useState } from "react";
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Notice } from "@/components/ui/notice";
-import { cn } from "@/lib/utils";
 
-export function AuthScreen({ mode }: { mode: "staff" | "admin" }) {
+export function AuthScreen() {
   return (
     <Suspense fallback={<main className="min-h-svh bg-muted/50" />}>
-      <AuthForm mode={mode} />
+      <AuthForm />
     </Suspense>
   );
 }
 
-function AuthForm({ mode }: { mode: "staff" | "admin" }) {
+function AuthForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [username, setUsername] = useState("");
@@ -26,8 +24,6 @@ function AuthForm({ mode }: { mode: "staff" | "admin" }) {
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const next = searchParams.get("next");
-  const staffHref = next ? `/login?next=${encodeURIComponent(next)}` : "/login";
-  const adminHref = next ? `/admin/login?next=${encodeURIComponent(next)}` : "/admin/login";
 
   async function login(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -38,33 +34,18 @@ function AuthForm({ mode }: { mode: "staff" | "admin" }) {
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          username,
-          password,
-          source: mode === "admin" ? "admin" : "purchase",
-        }),
+        body: JSON.stringify({ username, password }),
       });
 
       if (!response.ok) {
         throw new Error("Invalid login");
       }
 
-      if (mode === "admin") {
-        const nextPath = next || "/admin";
-        router.replace(nextPath.startsWith("/admin") ? nextPath : "/admin");
-      } else {
-        const nextPath = next || "/";
-        const allowed =
-          nextPath === "/" ||
-          nextPath.startsWith("/purchase") ||
-          nextPath.startsWith("/installations") ||
-          nextPath.startsWith("/invoices");
-        router.replace(allowed ? nextPath : "/");
-      }
-
+      const data = (await response.json()) as { user?: { role?: string } };
+      router.replace(destinationForRole(data.user?.role, next));
       router.refresh();
     } catch {
-      setMessage(mode === "admin" ? "Invalid admin username or password." : "Invalid username or password.");
+      setMessage("Invalid username or password.");
     } finally {
       setLoading(false);
     }
@@ -75,32 +56,9 @@ function AuthForm({ mode }: { mode: "staff" | "admin" }) {
       <Card className="w-full max-w-sm">
         <CardHeader>
           <CardTitle>Sign in</CardTitle>
-          <CardDescription>
-            {mode === "admin" ? "Office access for admins." : "Field access for purchases, jobs, and invoices."}
-          </CardDescription>
+          <CardDescription>Purchases, jobs, and invoices.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-5">
-          <div className="grid grid-cols-2 rounded-lg bg-muted p-1 text-sm">
-            <Link
-              className={cn(
-                "rounded-md px-3 py-1.5 text-center",
-                mode === "staff" ? "bg-background font-medium shadow-xs" : "text-muted-foreground",
-              )}
-              href={staffHref}
-            >
-              Staff
-            </Link>
-            <Link
-              className={cn(
-                "rounded-md px-3 py-1.5 text-center",
-                mode === "admin" ? "bg-background font-medium shadow-xs" : "text-muted-foreground",
-              )}
-              href={adminHref}
-            >
-              Admin
-            </Link>
-          </div>
-
           <form className="grid gap-4" onSubmit={login}>
             <div className="grid gap-2">
               <Label htmlFor="username">Username</Label>
@@ -133,4 +91,21 @@ function AuthForm({ mode }: { mode: "staff" | "admin" }) {
       </Card>
     </main>
   );
+}
+
+function destinationForRole(role: string | undefined, next: string | null) {
+  if (role === "ADMIN") {
+    return next?.startsWith("/admin") ? next : "/admin";
+  }
+
+  if (
+    next === "/" ||
+    next?.startsWith("/purchase") ||
+    next?.startsWith("/installations") ||
+    next?.startsWith("/invoices")
+  ) {
+    return next;
+  }
+
+  return "/";
 }

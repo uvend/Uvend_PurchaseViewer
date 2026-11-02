@@ -253,40 +253,65 @@ export default function AdminDashboard() {
           {loading ? <span className="text-sm text-muted-foreground">Loading...</span> : null}
         </div>
         <div className="grid gap-2">
-          {filteredPurchases.map((purchase) => (
-            <article
-              className="grid gap-3 rounded-lg border p-3 text-sm md:grid-cols-[minmax(0,1.4fr)_1fr_0.8fr_1fr_auto] md:items-center"
-              key={purchase.id}
-            >
-              <div>
-                <strong>{purchase.shopName}</strong>
-                <p className="text-muted-foreground">{purchase.description}</p>
-                <SlipFacts purchase={purchase} />
-              </div>
-              <span>{purchase.cardLabel}</span>
-              <span>{getUserLabel(purchase)}</span>
-              <span className="text-muted-foreground">{formatDate(purchase.purchasedAt)}</span>
-              <div className="flex gap-2">
-                <Button asChild size="sm" variant="outline">
-                  <a href={purchase.downloads.slip} rel="noreferrer" target="_blank">
-                    Slip
-                  </a>
-                </Button>
-                <Button asChild size="sm" variant="outline">
-                  <a href={purchase.downloads.item} rel="noreferrer" target="_blank">
-                    Item
-                  </a>
-                </Button>
-                {purchase.downloads.ocr ? (
-                  <Button asChild size="sm" variant="outline">
-                    <a href={purchase.downloads.ocr} rel="noreferrer" target="_blank">
-                      OCR image
-                    </a>
-                  </Button>
+          {filteredPurchases.map((purchase) => {
+            const isOpen = selectedPurchaseId === purchase.id;
+
+            return (
+              <article
+                className={cn("rounded-lg border text-sm", isOpen && "border-foreground bg-accent")}
+                key={purchase.id}
+              >
+                <div className="grid gap-3 p-3 md:grid-cols-[minmax(0,1.4fr)_1fr_0.8fr_1fr_auto] md:items-center">
+                  <button
+                    className="min-w-0 text-left"
+                    onClick={() => selectPurchase(purchase.id)}
+                    type="button"
+                  >
+                    <strong className="block">{purchase.shopName}</strong>
+                    <span className="block truncate text-muted-foreground">{purchase.description}</span>
+                  </button>
+                  <button className="text-left" onClick={() => selectPurchase(purchase.id)} type="button">
+                    {purchase.cardLabel}
+                  </button>
+                  <button className="text-left" onClick={() => selectPurchase(purchase.id)} type="button">
+                    {getUserLabel(purchase)}
+                  </button>
+                  <button
+                    className="text-left text-muted-foreground"
+                    onClick={() => selectPurchase(purchase.id)}
+                    type="button"
+                  >
+                    {formatDate(purchase.purchasedAt)}
+                  </button>
+                  <div className="flex gap-2">
+                    <Button asChild size="sm" variant="outline">
+                      <a href={purchase.downloads.slip} rel="noreferrer" target="_blank">
+                        Slip
+                      </a>
+                    </Button>
+                    <Button asChild size="sm" variant="outline">
+                      <a href={purchase.downloads.item} rel="noreferrer" target="_blank">
+                        Item
+                      </a>
+                    </Button>
+                    {purchase.downloads.ocr ? (
+                      <Button asChild size="sm" variant="outline">
+                        <a href={purchase.downloads.ocr} rel="noreferrer" target="_blank">
+                          OCR image
+                        </a>
+                      </Button>
+                    ) : null}
+                  </div>
+                </div>
+                {isOpen ? (
+                  <div className="grid gap-2 border-t px-3 py-3">
+                    <p className="whitespace-pre-wrap">{purchase.description}</p>
+                    <SlipFacts purchase={purchase} />
+                  </div>
                 ) : null}
-              </div>
-            </article>
-          ))}
+              </article>
+            );
+          })}
           {!loading && filteredPurchases.length === 0 ? (
             <p className="text-sm text-muted-foreground">Nothing matches these filters.</p>
           ) : null}
@@ -296,7 +321,7 @@ export default function AdminDashboard() {
   );
 }
 
-function SlipFacts({ purchase }: { purchase: Purchase }) {
+function SlipFacts({ purchase, hideNotes = false }: { purchase: Purchase; hideNotes?: boolean }) {
   const facts = [
     purchase.slipTotal && `Total ${purchase.slipTotal}`,
     purchase.slipAmount && `Amount ${purchase.slipAmount}`,
@@ -304,15 +329,17 @@ function SlipFacts({ purchase }: { purchase: Purchase }) {
     purchase.slipDateTime,
     purchase.slipCard,
   ].filter(Boolean);
+  const notes =
+    hideNotes || purchase.slipNotes?.trim() === purchase.description.trim() ? "" : purchase.slipNotes;
 
-  if (facts.length === 0 && !purchase.slipNotes) {
+  if (facts.length === 0 && !notes) {
     return null;
   }
 
   return (
     <div className="grid gap-1 text-muted-foreground">
       {facts.length > 0 ? <p>{facts.join(" · ")}</p> : null}
-      {purchase.slipNotes ? <p>{purchase.slipNotes}</p> : null}
+      {notes ? <p className="whitespace-pre-wrap">{notes}</p> : null}
     </div>
   );
 }
