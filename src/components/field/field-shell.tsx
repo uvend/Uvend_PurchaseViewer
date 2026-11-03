@@ -1,13 +1,13 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronLeft, FileText, House, ShoppingBag, Wrench } from "lucide-react";
+import { ChevronLeft, FileText, House, LayoutDashboard, ShoppingBag, Wrench } from "lucide-react";
 import { AdminLogoutButton } from "@/app/admin/AdminLogoutButton";
 import { cn } from "@/lib/utils";
 
-const nav = [
+const fieldNav = [
   { href: "/", label: "Home", icon: House, match: (path: string) => path === "/" },
   {
     href: "/purchase",
@@ -28,6 +28,13 @@ const nav = [
     match: (path: string) => path.startsWith("/invoices"),
   },
 ];
+
+const adminNav = {
+  href: "/admin",
+  label: "Admin",
+  icon: LayoutDashboard,
+  match: (path: string) => path.startsWith("/admin"),
+};
 
 export function FieldShell({
   title,
@@ -50,6 +57,32 @@ export function FieldShell({
 }) {
   const pathname = usePathname();
   const navy = tone === "navy";
+  const [isAdmin, setIsAdmin] = useState(false);
+  const nav = isAdmin ? [adminNav, ...fieldNav] : fieldNav;
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadRole() {
+      const response = await fetch("/api/auth/me");
+
+      if (!response.ok) {
+        return;
+      }
+
+      const data = (await response.json()) as { user?: { role?: string } };
+
+      if (!cancelled) {
+        setIsAdmin(data.user?.role === "ADMIN");
+      }
+    }
+
+    void loadRole();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <div className="min-h-svh bg-muted/50">
@@ -81,18 +114,6 @@ export function FieldShell({
                 </p>
               ) : null}
             </div>
-            {pathname !== "/" ? (
-              <Link
-                className={cn(
-                  "inline-flex h-8 items-center gap-1 rounded-md px-2 text-sm font-medium",
-                  navy ? "text-blue-100 hover:bg-white/10 hover:text-white" : "hover:bg-accent",
-                )}
-                href="/"
-              >
-                <House className="size-4" />
-                Home
-              </Link>
-            ) : null}
             <AdminLogoutButton
               className={navy ? "text-blue-100 hover:bg-white/10 hover:text-white" : undefined}
               redirectTo="/login"
@@ -101,12 +122,17 @@ export function FieldShell({
           {headerExtra}
         </header>
 
-        <main className={cn("flex flex-1 flex-col gap-4 px-4 py-5", footer && "pb-28")}>{children}</main>
+        <main className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 py-5">{children}</main>
 
-        {footer ? <div className="sticky bottom-0 border-t bg-background p-3">{footer}</div> : null}
+        {footer ? <div className="border-t bg-background p-3">{footer}</div> : null}
 
         {showNav ? (
-          <nav className="sticky bottom-0 grid grid-cols-4 border-t bg-background pb-[env(safe-area-inset-bottom)]">
+          <nav
+            className={cn(
+              "grid border-t bg-background pb-[env(safe-area-inset-bottom)]",
+              nav.length > 4 ? "grid-cols-5" : "grid-cols-4",
+            )}
+          >
             {nav.map((item) => {
               const active = item.match(pathname);
               const Icon = item.icon;
@@ -114,7 +140,7 @@ export function FieldShell({
               return (
                 <Link
                   className={cn(
-                    "flex flex-col items-center gap-1 px-2 py-2.5 text-xs text-muted-foreground",
+                    "flex min-w-0 flex-col items-center gap-1 px-1 py-2.5 text-[11px] text-muted-foreground",
                     active && "text-foreground",
                   )}
                   href={item.href}

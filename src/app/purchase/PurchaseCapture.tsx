@@ -121,6 +121,7 @@ export default function Home() {
   const [jobs, setJobs] = useState<JobOption[]>([]);
   const [jobId, setJobId] = useState("");
   const [slipNote, setSlipNote] = useState("");
+  const [itemNote, setItemNote] = useState("");
   const [slipTotal, setSlipTotal] = useState("");
   const [slipAmount, setSlipAmount] = useState("");
   const [slipRefunds, setSlipRefunds] = useState("");
@@ -243,29 +244,39 @@ export default function Home() {
     setStep((currentStep) => Math.max(currentStep - 1, 0));
   }
 
-  function handlePhotoChange(
-    event: ChangeEvent<HTMLInputElement>,
-    captureKind: CaptureKind,
-  ) {
-    const file = event.target.files?.[0];
-    if (!file) {
+  async function acceptPhoto(file: File, captureKind: CaptureKind) {
+    const prepared = await compressPhoto(file);
+
+    if (!prepared) {
+      if (captureKind === "slip") {
+        ocrRequest.current += 1;
+        setSlipPhoto(null);
+        setOcrCapture(null);
+        setOcrStatus("failed");
+        setSlipNote("That photo is too large to read. Take it again, closer to the slip.");
+      } else {
+        setItemPhoto(null);
+        setItemNote("That photo is too large. Take it again.");
+      }
       return;
     }
 
     const photo = {
-      file,
-      fileName: file.name,
-      mimeType: file.type || "application/octet-stream",
-      previewUrl: URL.createObjectURL(file),
+      file: prepared,
+      fileName: prepared.name,
+      mimeType: prepared.type || "image/jpeg",
+      previewUrl: URL.createObjectURL(prepared),
     };
 
     if (captureKind === "slip") {
+      setItemNote("");
       setSlipPhoto(photo);
       setOcrStatus("reading");
-      void readSlip(file);
+      void readSlip(prepared);
       return;
     }
 
+    setItemNote("");
     setItemPhoto(photo);
   }
 
@@ -370,7 +381,15 @@ export default function Home() {
     setOcrStatus("reading");
 
     try {
-      const prepared = await prepareSlipImage(file);
+      const prepared = await compressPhoto(file);
+
+      if (!prepared) {
+        setOcrCapture(null);
+        setOcrStatus("failed");
+        setSlipNote("That photo is too large to read. Take it again, closer to the slip.");
+        return;
+      }
+
       const body = new FormData();
       body.append("file", prepared, "slip.jpg");
       const response = await fetch("/api/ocr", { method: "POST", body });
@@ -554,7 +573,6 @@ export default function Home() {
 
   return (
     <FieldShell
-      showNav={false}
       subtitle={signedInUser ? `@${signedInUser.username}` : "Not signed in"}
       title="New purchase"
       tone="navy"
@@ -730,10 +748,11 @@ export default function Home() {
           <>
             <CaptureScreen
               captureKind="slip"
-              error={slipPhotoError}
+              error={slipPhoto ? "" : slipPhotoError}
               heading="Photograph the slip"
-              helper="Photograph the card slip clearly."
-              onChange={handlePhotoChange}
+              helper="The camera saves a small photo so the slip can be read."
+              note={slipPhoto ? "" : slipNote}
+              onCapture={acceptPhoto}
               onRedo={redoPhoto}
               photo={slipPhoto}
             >
@@ -754,7 +773,11 @@ export default function Home() {
                       value={slipNotes}
                     />
                   </div>
-                  {slipNote ? <p className="text-sm text-muted-foreground">{slipNote}</p> : null}
+                  {slipNote ? (
+                    <p className={cn("text-sm", ocrStatus === "failed" ? "text-destructive" : "text-muted-foreground")}>
+                      {slipNote}
+                    </p>
+                  ) : null}
                 </div>
               ) : null}
             </CaptureScreen>
@@ -764,10 +787,10 @@ export default function Home() {
         {step === 2 && (
           <CaptureScreen
             captureKind="item"
-            error={itemPhotoError}
+            error={itemPhoto ? "" : itemNote || itemPhotoError}
             heading="Photograph the item"
             helper="The part, tool, or material, so it can be matched to the slip."
-            onChange={handlePhotoChange}
+            onCapture={acceptPhoto}
             onRedo={redoPhoto}
             photo={itemPhoto}
           />
@@ -937,7 +960,8 @@ function CaptureScreen({
   error,
   heading,
   helper,
-  onChange,
+  note,
+  onCapture,
   onRedo,
   photo,
   children,
@@ -946,11 +970,116 @@ function CaptureScreen({
   error?: string;
   heading: string;
   helper: string;
-  onChange: (event: ChangeEvent<HTMLInputElement>, captureKind: CaptureKind) => void;
+  note?: string;
+  onCapture: (file: File, captureKind: CaptureKind) => void;
   onRedo: (captureKind: CaptureKind) => void;
   photo: PhotoState | null;
   children?: ReactNode;
 }) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const [cameraOn, setCameraOn] = useState(false);
+  const [cameraNote, setCameraNote] = useState("");
+
+  useEffect(() => {
+    return () => {
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+    };
+  }, []);
+
+  function stopCamera() {
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+    setCameraOn(false);
+  }
+
+  useEffect(() => {
+    const video = videoRef.current;
+    const stream = streamRef.current;
+
+    if (!cameraOn || !video || !stream) {
+      return;
+    }
+
+    video.srcObject = stream;
+    void video.play().catch(() => {
+      setCameraNote("The camera did not start. Choose a photo instead.");
+    });
+  }, [cameraOn]);
+
+  async function openCamera() {
+    setCameraNote("");
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setCameraNote("This device has no camera. Choose a photo instead.");
+      return;
+    }
+
+    try {
+      stopCamera();
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: {
+          facingMode: { ideal: "environment" },
+          width: { ideal: 960, max: 1280 },
+          height: { ideal: 720, max: 960 },
+        },
+      });
+      streamRef.current = stream;
+      setCameraOn(true);
+    } catch {
+      setCameraNote("Camera permission was denied. Choose a photo instead.");
+    }
+  }
+
+  function takePhoto() {
+    const video = videoRef.current;
+
+    if (!video || !video.videoWidth) {
+      setCameraNote("The camera is not ready yet.");
+      return;
+    }
+
+    const longest = Math.max(video.videoWidth, video.videoHeight);
+    const scale = Math.min(1, 1024 / longest);
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
+    canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
+    const context = canvas.getContext("2d");
+
+    if (!context) {
+      setCameraNote("Could not save that photo. Try again.");
+      return;
+    }
+
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) {
+          setCameraNote("Could not save that photo. Try again.");
+          return;
+        }
+
+        stopCamera();
+        onCapture(new File([blob], `${captureKind}.jpg`, { type: "image/jpeg" }), captureKind);
+      },
+      "image/jpeg",
+      0.5,
+    );
+  }
+
+  function choosePhoto(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+
+    if (!file) {
+      return;
+    }
+
+    stopCamera();
+    onCapture(file, captureKind);
+  }
+
   return (
     <section className="grid gap-4">
       <div>
@@ -958,48 +1087,75 @@ function CaptureScreen({
         <p className="mt-1 text-sm text-muted-foreground">{helper}</p>
       </div>
 
-      <label
+      <video
+        autoPlay
         className={cn(
-          "flex min-h-72 cursor-pointer flex-col items-center justify-center overflow-hidden rounded-xl border border-dashed bg-muted/40 text-center",
-          photo && "border-solid p-0",
-          error && !photo && "border-destructive ring-[3px] ring-destructive/30",
+          "w-full rounded-xl border bg-black object-cover",
+          cameraOn && !photo ? "h-72" : "pointer-events-none absolute h-px w-px opacity-0",
         )}
-      >
-        {photo ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img alt={`${captureKind} preview`} className="h-72 w-full object-cover" src={photo.previewUrl} />
-        ) : (
-          <span className="grid justify-items-center gap-2 px-6 text-sm">
-            <Camera className="size-5 text-muted-foreground" />
-            <strong>Open camera</strong>
-            <span className="text-muted-foreground">Or choose a photo from the gallery</span>
-          </span>
-        )}
-        <input
-          accept="image/*"
-          capture="environment"
-          className="sr-only"
-          onChange={(event) => onChange(event, captureKind)}
-          type="file"
-        />
-      </label>
+        muted
+        playsInline
+        ref={videoRef}
+      />
+      {photo ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img alt={`${captureKind} preview`} className="h-72 w-full rounded-xl border object-cover" src={photo.previewUrl} />
+      ) : cameraOn ? null : (
+        <div
+          className={cn(
+            "flex min-h-72 flex-col items-center justify-center gap-2 rounded-xl border border-dashed bg-muted/40 px-6 text-center text-sm",
+            error && "border-destructive ring-[3px] ring-destructive/30",
+          )}
+        >
+          <Camera className="size-5 text-muted-foreground" />
+          <strong>Take a small photo</strong>
+          <span className="text-muted-foreground">The camera is capped so the file stays small.</span>
+        </div>
+      )}
+
       <FieldError message={photo ? "" : error || ""} />
+      {cameraNote ? <p className="text-sm text-destructive">{cameraNote}</p> : null}
+      {note ? <p className="text-sm text-destructive">{note}</p> : null}
 
       {children}
 
       {photo ? <p className="text-sm text-muted-foreground">{photo.fileName}</p> : null}
 
-      <Button disabled={!photo} onClick={() => onRedo(captureKind)} type="button" variant="outline">
-        Retake
-      </Button>
+      <div className="grid grid-cols-2 gap-2">
+        {cameraOn ? (
+          <Button className="w-full" onClick={takePhoto} type="button">
+            Take photo
+          </Button>
+        ) : (
+          <Button className="w-full" onClick={() => void openCamera()} type="button">
+            {photo ? "Retake with camera" : "Open camera"}
+          </Button>
+        )}
+        <Button asChild className="w-full" type="button" variant="outline">
+          <label>
+            Choose photo
+            <input accept="image/*" className="sr-only" onChange={choosePhoto} type="file" />
+          </label>
+        </Button>
+      </div>
+      {cameraOn ? (
+        <Button onClick={stopCamera} type="button" variant="outline">
+          Close camera
+        </Button>
+      ) : null}
+      {photo ? (
+        <Button onClick={() => onRedo(captureKind)} type="button" variant="outline">
+          Clear photo
+        </Button>
+      ) : null}
     </section>
   );
 }
 
-async function prepareSlipImage(file: File) {
-  const limit = 1024 * 1024;
-  let maxEdge = 1600;
-  let quality = 0.85;
+async function compressPhoto(file: File) {
+  const limit = 500 * 1024;
+  let maxEdge = 1024;
+  let quality = 0.5;
 
   try {
     const bitmap = await createImageBitmap(file);
@@ -1024,20 +1180,20 @@ async function prepareSlipImage(file: File) {
         });
 
         if (blob && blob.size > 0 && blob.size <= limit) {
-          return new File([blob], "slip.jpg", { type: "image/jpeg" });
+          return new File([blob], "photo.jpg", { type: "image/jpeg" });
         }
 
-        quality = Math.max(0.45, quality - 0.15);
-        maxEdge = Math.round(maxEdge * 0.75);
+        quality = Math.max(0.35, quality - 0.08);
+        maxEdge = Math.round(maxEdge * 0.8);
       }
     } finally {
       bitmap.close();
     }
   } catch {
-    return file;
+    return null;
   }
 
-  return file;
+  return null;
 }
 
 function FieldError({ message }: { message: string }) {
