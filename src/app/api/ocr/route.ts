@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
-import { EasyOcrError, recognizeImage } from "@/lib/easyocr";
+import { OcrSpaceError, recognizeImage } from "@/lib/ocr-space";
 import { parseSlipText } from "@/lib/slip-fields";
 
 export async function POST(request: Request) {
@@ -24,11 +24,8 @@ export async function POST(request: Request) {
       fields: parseSlipText(result.text),
     });
   } catch (error) {
-    if (error instanceof EasyOcrError) {
-      return NextResponse.json(
-        { error: error.message, requestId: error.requestId },
-        { status: error.status },
-      );
+    if (error instanceof OcrSpaceError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
     }
 
     console.error(error);

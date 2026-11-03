@@ -128,6 +128,7 @@ export default function Home() {
   const [slipCard, setSlipCard] = useState("");
   const [slipNotes, setSlipNotes] = useState("");
   const [ocrCapture, setOcrCapture] = useState<OcrCapture | null>(null);
+  const [ocrStatus, setOcrStatus] = useState<"idle" | "reading" | "done" | "failed">("idle");
   const ocrRequest = useRef(0);
   const filledByOcr = useRef(false);
 
@@ -183,40 +184,58 @@ export default function Home() {
     };
   }, []);
 
+  const latitudeError = coordinateError(manualLatitude, -90, 90, "Latitude");
+  const longitudeError = coordinateError(manualLongitude, -180, 180, "Longitude");
+  const customCardError = businessCard === "Other card" && !customCard.trim() ? "Enter the card name." : "";
+  const customShopError = shop === "Other shop" && !customShop.trim() ? "Enter the shop name." : "";
+  const descriptionError = description.trim() ? "" : "Add a description.";
+  const slipLabelError = slipLabel.trim() ? "" : "Add a slip label.";
+  const itemLabelError = itemLabel.trim() ? "" : "Add an item label.";
+  const slipPhotoError = slipPhoto ? "" : "Photograph the slip.";
+  const itemPhotoError = itemPhoto ? "" : "Photograph the item.";
+  const ocrPending = ocrStatus === "reading";
+
   const canContinue = useMemo(() => {
     if (step === 0) {
-      return businessCard !== "Other card" || customCard.trim().length > 0;
+      return !customCardError;
     }
 
     if (step === 1) {
-      return Boolean(slipPhoto);
+      return !slipPhotoError && !ocrPending;
     }
 
     if (step === 2) {
-      return Boolean(itemPhoto);
+      return !itemPhotoError;
     }
 
     if (step === 3) {
-      return shop !== "Other shop" || customShop.trim().length > 0;
+      return !customShopError && !latitudeError && !longitudeError;
     }
 
     if (step === 4) {
-      return description.trim().length > 0;
+      return !descriptionError && !slipLabelError && !itemLabelError;
     }
 
     return true;
   }, [
-    businessCard,
-    customCard,
-    customShop,
-    description,
-    itemPhoto,
-    shop,
-    slipPhoto,
+    customCardError,
+    customShopError,
+    descriptionError,
+    itemLabelError,
+    itemPhotoError,
+    latitudeError,
+    longitudeError,
+    ocrPending,
+    slipLabelError,
+    slipPhotoError,
     step,
   ]);
 
   function nextStep() {
+    if (!canContinue) {
+      return;
+    }
+
     setStep((currentStep) => Math.min(currentStep + 1, stepLabels.length - 1));
   }
 
@@ -242,6 +261,7 @@ export default function Home() {
 
     if (captureKind === "slip") {
       setSlipPhoto(photo);
+      setOcrStatus("reading");
       void readSlip(file);
       return;
     }
@@ -261,6 +281,7 @@ export default function Home() {
       setSlipDateTime("");
       setSlipCard("");
       setOcrCapture(null);
+      setOcrStatus("idle");
       if (filledByOcr.current) {
         filledByOcr.current = false;
         setDescription("");
@@ -331,6 +352,7 @@ export default function Home() {
     setSlipDateTime("");
     setSlipCard("");
     setOcrCapture(null);
+    setOcrStatus("idle");
     filledByOcr.current = false;
     ocrRequest.current += 1;
     setLocation("");
@@ -345,6 +367,7 @@ export default function Home() {
     const requestId = ocrRequest.current + 1;
     ocrRequest.current = requestId;
     setSlipNote("Reading the slip...");
+    setOcrStatus("reading");
 
     try {
       const prepared = await prepareSlipImage(file);
@@ -374,7 +397,8 @@ export default function Home() {
 
       if (!response.ok) {
         setOcrCapture(null);
-        setSlipNote(data.error || "Could not read the slip. Type it on the details step.");
+        setOcrStatus("failed");
+        setSlipNote(data.error || "Could not read the slip. You can continue and type the details.");
         return;
       }
 
@@ -408,14 +432,16 @@ export default function Home() {
       });
       setDescription((current) => (current.trim() && !filledByOcr.current ? current : summary));
       filledByOcr.current = Boolean(summary);
+      setOcrStatus("done");
       setSlipNote(text ? "Filled from the slip. You can edit it before saving." : "No text found on the slip.");
     } catch {
       if (requestId !== ocrRequest.current) {
         return;
       }
 
-      setSlipNote("Could not read the slip. Type it on the details step.");
+      setSlipNote("Could not read the slip. You can continue and type the details.");
       setOcrCapture(null);
+      setOcrStatus("failed");
     }
   }
 
@@ -552,7 +578,7 @@ export default function Home() {
           </Button>
           {step < stepLabels.length - 1 ? (
             <Button disabled={!canContinue} onClick={nextStep} type="button">
-              Continue
+              {ocrPending && step === 1 ? "Reading slip..." : "Continue"}
             </Button>
           ) : (
             <Button disabled={isSubmitting} onClick={submitAndReset} type="button">
@@ -569,7 +595,7 @@ export default function Home() {
             <div>
               <h2 className="text-lg font-semibold tracking-tight">Which shop?</h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                Optional. Add the supplier if you know it, or leave it for later.
+                Shop is optional. Latitude and longitude are required.
               </p>
             </div>
 
@@ -595,12 +621,14 @@ export default function Home() {
               <div className="grid gap-2">
                 <Label htmlFor="custom-shop">Custom shop name</Label>
                 <Input
+                  aria-invalid={customShopError ? true : undefined}
                   autoComplete="organization"
                   id="custom-shop"
                   onChange={(event) => setCustomShop(event.target.value)}
                   placeholder="Enter supplier"
                   value={customShop}
                 />
+                <FieldError message={customShopError} />
               </div>
             )}
 
@@ -611,25 +639,37 @@ export default function Home() {
               <div className="grid gap-2">
                 <Label htmlFor="latitude">Latitude</Label>
                 <Input
+                  aria-invalid={latitudeError ? true : undefined}
                   id="latitude"
                   inputMode="decimal"
                   onChange={(event) => setManualLatitude(event.target.value)}
                   placeholder="-33.9249"
                   value={manualLatitude}
                 />
+                <FieldError message={latitudeError} />
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="longitude">Longitude</Label>
                 <Input
+                  aria-invalid={longitudeError ? true : undefined}
                   id="longitude"
                   inputMode="decimal"
                   onChange={(event) => setManualLongitude(event.target.value)}
                   placeholder="18.4241"
                   value={manualLongitude}
                 />
+                <FieldError message={longitudeError} />
               </div>
             </div>
-            <p className="text-sm text-muted-foreground">
+            <p
+              className={cn(
+                "text-sm",
+                locationStatus === "Location permission denied or unavailable" ||
+                  locationStatus === "Geolocation is not available on this device"
+                  ? "text-destructive"
+                  : "text-muted-foreground",
+              )}
+            >
               {locationStatus}
               {manualLatitude && manualLongitude
                 ? `: ${manualLatitude}, ${manualLongitude}`
@@ -669,12 +709,14 @@ export default function Home() {
               <div className="grid gap-2">
                 <Label htmlFor="custom-card">Custom card label</Label>
                 <Input
+                  aria-invalid={customCardError ? true : undefined}
                   autoComplete="off"
                   id="custom-card"
                   onChange={(event) => setCustomCard(event.target.value)}
                   placeholder="FNB card ending 1234"
                   value={customCard}
                 />
+                <FieldError message={customCardError} />
               </div>
             )}
 
@@ -688,6 +730,7 @@ export default function Home() {
           <>
             <CaptureScreen
               captureKind="slip"
+              error={slipPhotoError}
               heading="Photograph the slip"
               helper="Photograph the card slip clearly."
               onChange={handlePhotoChange}
@@ -721,6 +764,7 @@ export default function Home() {
         {step === 2 && (
           <CaptureScreen
             captureKind="item"
+            error={itemPhotoError}
             heading="Photograph the item"
             helper="The part, tool, or material, so it can be matched to the slip."
             onChange={handlePhotoChange}
@@ -777,21 +821,35 @@ export default function Home() {
 
             <div className="grid gap-2">
               <Label htmlFor="slip-label">Slip label</Label>
-              <Input id="slip-label" onChange={(event) => setSlipLabel(event.target.value)} value={slipLabel} />
+              <Input
+                aria-invalid={slipLabelError ? true : undefined}
+                id="slip-label"
+                onChange={(event) => setSlipLabel(event.target.value)}
+                value={slipLabel}
+              />
+              <FieldError message={slipLabelError} />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="item-label">Item label</Label>
-              <Input id="item-label" onChange={(event) => setItemLabel(event.target.value)} value={itemLabel} />
+              <Input
+                aria-invalid={itemLabelError ? true : undefined}
+                id="item-label"
+                onChange={(event) => setItemLabel(event.target.value)}
+                value={itemLabel}
+              />
+              <FieldError message={itemLabelError} />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="description">Description</Label>
               <Textarea
+                aria-invalid={descriptionError ? true : undefined}
                 id="description"
                 onChange={(event) => setDescription(event.target.value)}
                 placeholder="PVC conduit and fittings for the Claremont install"
                 rows={4}
                 value={description}
               />
+              <FieldError message={descriptionError} />
             </div>
 
             <Button onClick={pinCurrentLabel} type="button" variant="outline">
@@ -876,6 +934,7 @@ function SlipField({
 
 function CaptureScreen({
   captureKind,
+  error,
   heading,
   helper,
   onChange,
@@ -884,6 +943,7 @@ function CaptureScreen({
   children,
 }: {
   captureKind: CaptureKind;
+  error?: string;
   heading: string;
   helper: string;
   onChange: (event: ChangeEvent<HTMLInputElement>, captureKind: CaptureKind) => void;
@@ -902,6 +962,7 @@ function CaptureScreen({
         className={cn(
           "flex min-h-72 cursor-pointer flex-col items-center justify-center overflow-hidden rounded-xl border border-dashed bg-muted/40 text-center",
           photo && "border-solid p-0",
+          error && !photo && "border-destructive ring-[3px] ring-destructive/30",
         )}
       >
         {photo ? (
@@ -922,6 +983,7 @@ function CaptureScreen({
           type="file"
         />
       </label>
+      <FieldError message={photo ? "" : error || ""} />
 
       {children}
 
@@ -935,38 +997,71 @@ function CaptureScreen({
 }
 
 async function prepareSlipImage(file: File) {
-  const maxEdge = 1600;
+  const limit = 1024 * 1024;
+  let maxEdge = 1600;
+  let quality = 0.85;
 
   try {
     const bitmap = await createImageBitmap(file);
-    const scale = Math.min(1, maxEdge / Math.max(bitmap.width, bitmap.height));
-    const width = Math.max(1, Math.round(bitmap.width * scale));
-    const height = Math.max(1, Math.round(bitmap.height * scale));
-    const canvas = document.createElement("canvas");
-    canvas.width = width;
-    canvas.height = height;
-    const context = canvas.getContext("2d");
 
-    if (!context) {
+    try {
+      for (let attempt = 0; attempt < 6; attempt += 1) {
+        const scale = Math.min(1, maxEdge / Math.max(bitmap.width, bitmap.height));
+        const width = Math.max(1, Math.round(bitmap.width * scale));
+        const height = Math.max(1, Math.round(bitmap.height * scale));
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const context = canvas.getContext("2d");
+
+        if (!context) {
+          break;
+        }
+
+        context.drawImage(bitmap, 0, 0, width, height);
+        const blob = await new Promise<Blob | null>((resolve) => {
+          canvas.toBlob(resolve, "image/jpeg", quality);
+        });
+
+        if (blob && blob.size > 0 && blob.size <= limit) {
+          return new File([blob], "slip.jpg", { type: "image/jpeg" });
+        }
+
+        quality = Math.max(0.45, quality - 0.15);
+        maxEdge = Math.round(maxEdge * 0.75);
+      }
+    } finally {
       bitmap.close();
-      return file;
     }
-
-    context.drawImage(bitmap, 0, 0, width, height);
-    bitmap.close();
-
-    const blob = await new Promise<Blob | null>((resolve) => {
-      canvas.toBlob(resolve, "image/jpeg", 0.85);
-    });
-
-    if (!blob || blob.size > 3 * 1024 * 1024) {
-      return file;
-    }
-
-    return new File([blob], "slip.jpg", { type: "image/jpeg" });
   } catch {
     return file;
   }
+
+  return file;
+}
+
+function FieldError({ message }: { message: string }) {
+  if (!message) {
+    return null;
+  }
+
+  return <p className="text-sm text-destructive">{message}</p>;
+}
+
+function coordinateError(value: string, minimum: number, maximum: number, label: string) {
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return `${label} is required.`;
+  }
+
+  const number = Number(trimmed);
+
+  if (!Number.isFinite(number) || number < minimum || number > maximum) {
+    return `Enter a valid ${label.toLowerCase()}.`;
+  }
+
+  return "";
 }
 
 function Row({ label, value }: { label: string; value: string }) {
