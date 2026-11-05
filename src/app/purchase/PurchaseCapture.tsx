@@ -725,10 +725,11 @@ export default function Home() {
                   <div className="grid gap-2">
                     <Label htmlFor="slip-notes">Notes</Label>
                     <Textarea
+                      className="min-h-32 leading-6"
                       id="slip-notes"
                       onChange={(event) => setSlipNotes(event.target.value)}
                       placeholder={slipNote === "Reading the slip..." ? "Reading the slip..." : "The rest of the slip"}
-                      rows={4}
+                      rows={6}
                       value={slipNotes}
                     />
                   </div>
@@ -1191,7 +1192,9 @@ function Row({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-start justify-between gap-4 border-b py-3 text-sm last:border-0">
       <span className="text-muted-foreground">{label}</span>
-      <strong className="max-w-[65%] text-right font-medium">{value}</strong>
+      <strong className={cn("max-w-[65%] text-right font-medium", value.includes("\n") && "whitespace-pre-wrap")}>
+        {value}
+      </strong>
     </div>
   );
 }

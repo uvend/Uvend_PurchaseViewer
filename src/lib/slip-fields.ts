@@ -74,7 +74,7 @@ export function parseSlipText(text: string): SlipFields {
     refunds,
     dateTime: dateTime?.value ?? "",
     card: card?.value ?? "",
-    notes: remainder(source, taken),
+    notes: notesFromLines(lines, starts, taken),
   };
 }
 
@@ -498,16 +498,32 @@ function tidyMoney(value: string) {
   return compact;
 }
 
-function remainder(text: string, taken: Span[]) {
-  const chars = [...text];
+const capturedLabel =
+  /\b(?:grand\s+total|total\s+due|amount\s+due|balance\s+due|sub[\s-]*total|amount\s+given|token\s+amount|refunds?|change|date|time|card(?:\s*(?:no|number|#))?|pan|amount|amt|total)\b\s*[:\-]?/gi;
+
+function notesFromLines(lines: string[], starts: number[], taken: Span[]) {
+  const pieces = lines.flatMap((line, index) => notePieces(clearTaken(line, starts[index], taken)));
+  return pieces.join("\n\n");
+}
+
+function clearTaken(line: string, start: number, taken: Span[]) {
+  const chars = [...line];
+
   for (const span of taken) {
-    for (let index = span.start; index < span.end && index < chars.length; index += 1) {
+    const from = Math.max(0, span.start - start);
+    const to = Math.min(line.length, span.end - start);
+
+    for (let index = from; index < to; index += 1) {
       chars[index] = " ";
     }
   }
 
-  return chars
-    .join("")
-    .replace(/\s{2,}/g, " ")
-    .trim();
+  return chars.join("");
+}
+
+function notePieces(line: string) {
+  return line
+    .split(new RegExp(capturedLabel.source, "gi"))
+    .map((piece) => piece.replace(/\s{2,}/g, " ").trim().replace(/^[:\-.,]+|[:\-.,]+$/g, "").trim())
+    .filter(Boolean);
 }
