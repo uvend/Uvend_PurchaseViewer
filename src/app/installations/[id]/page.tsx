@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { FieldShell } from "@/components/field/field-shell";
 import { Button } from "@/components/ui/button";
@@ -34,9 +34,13 @@ export default function InstallationJobPage() {
   const params = useParams<{ id: string }>();
   const [job, setJob] = useState<JobDetail | null>(null);
   const [note, setNote] = useState("");
-  const [listening, setListening] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [transcribing, setTranscribing] = useState(false);
+  const [fromVoice, setFromVoice] = useState(false);
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -96,6 +100,7 @@ export default function InstallationJobPage() {
     }
 
     setNote("");
+    setFromVoice(false);
     await loadJob();
     setMessage(`Note saved. ${location.locationStatus}`);
   }
@@ -110,7 +115,7 @@ export default function InstallationJobPage() {
     setSaving(true);
 
     try {
-      await addNote(note, "typed");
+      await addNote(note, fromVoice ? "voice" : "typed");
     } catch {
       setMessage("Could not save the note.");
     } finally {
@@ -118,53 +123,98 @@ export default function InstallationJobPage() {
     }
   }
 
-  function startVoice() {
-    const SpeechRecognition =
-      window.SpeechRecognition || window.webkitSpeechRecognition;
+  useEffect(() => {
+    return () => {
+      const recorder = recorderRef.current;
 
-    if (!SpeechRecognition) {
-      setMessage("Voice notes need Chrome or Edge on this phone.");
+      if (recorder && recorder.state !== "inactive") {
+        recorder.onstop = null;
+        recorder.stop();
+      }
+
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+    };
+  }, []);
+
+  async function startRecording() {
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+      setMessage("This phone cannot record a voice note. Type it instead.");
       return;
     }
 
-    const recognition = new SpeechRecognition();
-    recognition.lang = "en-ZA";
-    recognition.interimResults = false;
-    recognition.continuous = false;
-    setListening(true);
-    setMessage("Listening...");
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mimeType = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"].find((type) =>
+        MediaRecorder.isTypeSupported(type),
+      );
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      const chunks: Blob[] = [];
 
-    recognition.onresult = async (event: SpeechRecognitionEvent) => {
-      const transcript = Array.from(event.results)
-        .map((result) => result[0]?.transcript ?? "")
-        .join(" ")
-        .trim();
+      streamRef.current = stream;
+      recorderRef.current = recorder;
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          chunks.push(event.data);
+        }
+      };
+      recorder.onstop = () => {
+        stream.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+        const blob = new Blob(chunks, { type: recorder.mimeType || mimeType || "audio/webm" });
+        void fillNoteFromSpeech(blob);
+      };
 
-      if (!transcript) {
-        setListening(false);
-        setMessage("No speech captured. Try again.");
+      recorder.start();
+      setRecording(true);
+      setMessage("Recording. Tap stop when the note is finished.");
+    } catch {
+      setMessage("Allow the microphone, then try the voice note again.");
+    }
+  }
+
+  function stopRecording() {
+    const recorder = recorderRef.current;
+
+    if (!recorder || recorder.state === "inactive") {
+      setRecording(false);
+      return;
+    }
+
+    setRecording(false);
+    setTranscribing(true);
+    setMessage("Turning the recording into text...");
+    recorder.stop();
+  }
+
+  async function fillNoteFromSpeech(blob: Blob) {
+    if (blob.size < 1000) {
+      setTranscribing(false);
+      setMessage("That recording was too short. Say the note again.");
+      return;
+    }
+
+    const body = new FormData();
+    const extension = blob.type.includes("mp4") ? "m4a" : "webm";
+    body.set("file", new File([blob], `note.${extension}`, { type: blob.type || "audio/webm" }));
+
+    try {
+      const response = await fetch("/api/speech", { method: "POST", body });
+      const data = (await response.json()) as { text?: string; error?: string };
+
+      if (!response.ok || !data.text) {
+        setMessage(data.error || "Could not turn that recording into text.");
         return;
       }
 
-      try {
-        await addNote(transcript, "voice");
-      } catch {
-        setMessage("Heard the note, but could not save it.");
-      } finally {
-        setListening(false);
-      }
-    };
-
-    recognition.onerror = () => {
-      setListening(false);
-      setMessage("Voice capture stopped. Type the note instead.");
-    };
-
-    recognition.onend = () => {
-      setListening(false);
-    };
-
-    recognition.start();
+      const text = data.text;
+      setNote((current) => (current.trim() ? `${current.trim()} ${text}` : text));
+      setFromVoice(true);
+      setMessage("The voice note is in the notes box. Check it, then add the note.");
+    } catch {
+      setMessage("Could not turn that recording into text.");
+    } finally {
+      setTranscribing(false);
+    }
   }
 
   async function saveJob() {
@@ -213,13 +263,19 @@ export default function InstallationJobPage() {
 
       {message ? <Notice>{message}</Notice> : null}
 
-      <Button disabled={listening} onClick={startVoice} type="button" variant="outline">
-        {listening ? "Listening..." : "Record voice note"}
-      </Button>
-
       <form className="grid gap-3" onSubmit={submitTyped}>
         <div className="grid gap-2">
-          <Label htmlFor="job-note">Typed note</Label>
+          <div className="flex items-center justify-between gap-3">
+            <Label htmlFor="job-note">Notes</Label>
+            <Button
+              disabled={saving || transcribing}
+              onClick={recording ? stopRecording : startRecording}
+              type="button"
+              variant="outline"
+            >
+              {transcribing ? "Writing the note..." : recording ? "Stop and write the note" : "Record voice note"}
+            </Button>
+          </div>
           <Textarea
             id="job-note"
             onChange={(event) => setNote(event.target.value)}
@@ -228,7 +284,7 @@ export default function InstallationJobPage() {
             value={note}
           />
         </div>
-        <Button disabled={saving || !note.trim()} type="submit" variant="secondary">
+        <Button disabled={saving || recording || transcribing || !note.trim()} type="submit" variant="secondary">
           Add note and recapture GPS
         </Button>
       </form>
@@ -259,25 +315,4 @@ export default function InstallationJobPage() {
       </Button>
     </FieldShell>
   );
-}
-
-declare global {
-  interface Window {
-    SpeechRecognition?: new () => SpeechRecognition;
-    webkitSpeechRecognition?: new () => SpeechRecognition;
-  }
-
-  interface SpeechRecognition extends EventTarget {
-    lang: string;
-    interimResults: boolean;
-    continuous: boolean;
-    onresult: ((event: SpeechRecognitionEvent) => void) | null;
-    onerror: (() => void) | null;
-    onend: (() => void) | null;
-    start(): void;
-  }
-
-  interface SpeechRecognitionEvent {
-    results: ArrayLike<ArrayLike<{ transcript: string }>>;
-  }
 }
