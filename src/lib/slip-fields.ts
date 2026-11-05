@@ -159,29 +159,34 @@ function takeCard(text: string, taken: Span[]) {
   const brand = [...text.matchAll(/\b(visa|mastercard|master\s*card|amex|american\s+express|diners)\b/gi)].find(
     (match) => !overlaps(spanOf(match), taken),
   );
-  const masked = [...text.matchAll(/((?:\*{2,}|x{2,})\s*\d{4})/gi)].find(
+  const masked = [...text.matchAll(/((?:[*x.]{2,}[\s*]*)+\d{4})/gi)].find(
     (match) => !overlaps(spanOf(match), taken),
   );
-  const labeled = [...text.matchAll(/\bcard(?:\s*(?:no|number|#))?\s*[:\-]?\s*(\d{4})\b/gi)].find(
+  const labeled = [
+    ...text.matchAll(
+      /\b(?:card|pan|a\/c)(?:\s*(?:no|number|#))?\s*[:\-]?\s*((?:[*x.\s-]*\d){4,19})/gi,
+    ),
+  ].find((match) => !overlaps(spanOf(match), taken));
+  const ending = [...text.matchAll(/\b(?:ending|ends)\s*(?:in|with)?\s*[:\-]?\s*(\d{4})\b/gi)].find(
     (match) => !overlaps(spanOf(match), taken),
   );
 
-  if (!brand && !masked && !labeled) {
+  if (!brand && !masked && !labeled && !ending) {
     return null;
   }
 
-  for (const match of [brand, masked, labeled]) {
+  for (const match of [brand, masked, labeled, ending]) {
     if (match) {
       taken.push(spanOf(match));
     }
   }
 
-  const lastFour = (masked?.[1] || labeled?.[1] || "").replace(/\D/g, "").slice(-4);
+  const lastFour = (masked?.[1] || labeled?.[1] || ending?.[1] || "").replace(/\D/g, "").slice(-4);
   const brandName = brand ? brand[1].replace(/\s+/g, " ").toUpperCase() : "";
-  const maskedText = masked ? masked[1].replace(/\s+/g, " ").toUpperCase() : lastFour ? `**** ${lastFour}` : "";
+  const maskedText = lastFour ? `**** ${lastFour}` : "";
   const value = [brandName, maskedText].filter(Boolean).join(" ").trim();
 
-  return { value };
+  return value ? { value } : null;
 }
 
 function nearest(matches: RegExpMatchArray[], text: string, hint: RegExp, taken: Span[]) {

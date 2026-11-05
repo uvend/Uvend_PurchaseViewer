@@ -69,13 +69,6 @@ const shops = [
   "Other shop",
 ];
 
-const businessCards = [
-  "Std Bank - **** 7377",
-  "Backup business card",
-  "Admin card",
-  "Other card",
-];
-
 const starterLabels: ReusableLabel[] = [
   {
     shop: "Builders",
@@ -97,15 +90,13 @@ const starterLabels: ReusableLabel[] = [
   },
 ];
 
-const stepLabels = ["Card", "Slip", "Item", "Shop", "Details", "Confirm"];
+const stepLabels = ["Slip", "Item", "Shop", "Details", "Confirm"];
 
 export default function Home() {
   const [step, setStep] = useState(0);
   const [signedInUser, setSignedInUser] = useState<SignedInUser | null>(null);
   const [shop, setShop] = useState("");
   const [customShop, setCustomShop] = useState("");
-  const [businessCard, setBusinessCard] = useState(businessCards[0]);
-  const [customCard, setCustomCard] = useState("");
   const [slipPhoto, setSlipPhoto] = useState<PhotoState | null>(null);
   const [itemPhoto, setItemPhoto] = useState<PhotoState | null>(null);
   const [slipLabel, setSlipLabel] = useState("Slip pic");
@@ -139,8 +130,7 @@ export default function Home() {
       : shop === "Other shop"
         ? customShop || "Custom shop"
         : shop;
-  const selectedCard =
-    businessCard === "Other card" ? customCard || "Custom card" : businessCard;
+  const selectedCard = slipCard.trim() || "Not found";
   const progressWidth = `${((step + 1) / stepLabels.length) * 100}%`;
 
   useEffect(() => {
@@ -187,7 +177,6 @@ export default function Home() {
 
   const latitudeError = coordinateError(manualLatitude, -90, 90, "Latitude");
   const longitudeError = coordinateError(manualLongitude, -180, 180, "Longitude");
-  const customCardError = businessCard === "Other card" && !customCard.trim() ? "Enter the card name." : "";
   const customShopError = shop === "Other shop" && !customShop.trim() ? "Enter the shop name." : "";
   const descriptionError = description.trim() ? "" : "Add a description.";
   const slipLabelError = slipLabel.trim() ? "" : "Add a slip label.";
@@ -198,28 +187,23 @@ export default function Home() {
 
   const canContinue = useMemo(() => {
     if (step === 0) {
-      return !customCardError;
-    }
-
-    if (step === 1) {
       return !slipPhotoError && !ocrPending;
     }
 
-    if (step === 2) {
+    if (step === 1) {
       return !itemPhotoError;
     }
 
-    if (step === 3) {
+    if (step === 2) {
       return !customShopError && !latitudeError && !longitudeError;
     }
 
-    if (step === 4) {
+    if (step === 3) {
       return !descriptionError && !slipLabelError && !itemLabelError;
     }
 
     return true;
   }, [
-    customCardError,
     customShopError,
     descriptionError,
     itemLabelError,
@@ -348,8 +332,6 @@ export default function Home() {
     setStep(0);
     setShop("");
     setCustomShop("");
-    setBusinessCard(businessCards[0]);
-    setCustomCard("");
     setSlipPhoto(null);
     setItemPhoto(null);
     setSlipLabel("Slip pic");
@@ -429,11 +411,6 @@ export default function Home() {
       setSlipDateTime(fields.dateTime);
       setSlipCard(fields.card);
       setSlipNotes(fields.notes);
-      const lastFour = fields.card.replace(/\D/g, "").slice(-4);
-      const knownCard = lastFour ? businessCards.find((name) => name.includes(lastFour)) : undefined;
-      if (knownCard) {
-        setBusinessCard(knownCard);
-      }
       const summary = [
         fields.total && `Total ${fields.total}`,
         fields.amount && `Amount ${fields.amount}`,
@@ -596,7 +573,7 @@ export default function Home() {
           </Button>
           {step < stepLabels.length - 1 ? (
             <Button disabled={!canContinue} onClick={nextStep} type="button">
-              {ocrPending && step === 1 ? "Reading slip..." : "Continue"}
+              {ocrPending && step === 0 ? "Reading slip..." : "Continue"}
             </Button>
           ) : (
             <Button disabled={isSubmitting} onClick={submitAndReset} type="button">
@@ -608,7 +585,7 @@ export default function Home() {
     >
       {submitMessage ? <Notice>{submitMessage}</Notice> : null}
 
-        {step === 3 && (
+        {step === 2 && (
           <section className="grid gap-4">
             <div>
               <h2 className="text-lg font-semibold tracking-tight">Which shop?</h2>
@@ -699,58 +676,12 @@ export default function Home() {
         )}
 
         {step === 0 && (
-          <section className="grid gap-4">
-            <div>
-              <h2 className="text-lg font-semibold tracking-tight">Which card?</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                This is what admin matches to the bank statement.
-              </p>
-            </div>
-
-            <div className="grid gap-2">
-              {businessCards.map((cardName) => (
-                <button
-                  className={choiceClass(businessCard === cardName)}
-                  key={cardName}
-                  onClick={() => setBusinessCard(cardName)}
-                  type="button"
-                >
-                  <span className="block font-medium">{cardName}</span>
-                  <span className="mt-0.5 block text-muted-foreground">
-                    {cardName.includes("7377") ? "Standard Bank card" : "Tap if this was the card"}
-                  </span>
-                </button>
-              ))}
-            </div>
-
-            {businessCard === "Other card" && (
-              <div className="grid gap-2">
-                <Label htmlFor="custom-card">Custom card label</Label>
-                <Input
-                  aria-invalid={customCardError ? true : undefined}
-                  autoComplete="off"
-                  id="custom-card"
-                  onChange={(event) => setCustomCard(event.target.value)}
-                  placeholder="FNB card ending 1234"
-                  value={customCard}
-                />
-                <FieldError message={customCardError} />
-              </div>
-            )}
-
-            <div className="grid gap-1 text-sm text-muted-foreground">
-              <p>Card: {selectedCard}</p>
-            </div>
-          </section>
-        )}
-
-        {step === 1 && (
           <>
             <CaptureScreen
               captureKind="slip"
               error={slipPhoto ? "" : slipPhotoError}
               heading="Photograph the slip"
-              helper="The camera saves a small photo so the slip can be read."
+              helper="The reader fills the amounts and the card number from the slip."
               note={slipPhoto ? "" : slipNote}
               onCapture={acceptPhoto}
               onRedo={redoPhoto}
@@ -762,7 +693,7 @@ export default function Home() {
                   <SlipField id="slip-amount" label="Amount" onChange={setSlipAmount} value={slipAmount} />
                   <SlipField id="slip-refunds" label="Refunds" onChange={setSlipRefunds} value={slipRefunds} />
                   <SlipField id="slip-when" label="Date and time" onChange={setSlipDateTime} value={slipDateTime} />
-                  <SlipField id="slip-card" label="Card" onChange={setSlipCard} value={slipCard} />
+                  <SlipField id="slip-card" label="Card number" onChange={setSlipCard} value={slipCard} />
                   <div className="grid gap-2">
                     <Label htmlFor="slip-notes">Notes</Label>
                     <Textarea
@@ -784,7 +715,7 @@ export default function Home() {
           </>
         )}
 
-        {step === 2 && (
+        {step === 1 && (
           <CaptureScreen
             captureKind="item"
             error={itemPhoto ? "" : itemNote || itemPhotoError}
@@ -796,7 +727,7 @@ export default function Home() {
           />
         )}
 
-        {step === 4 && (
+        {step === 3 && (
           <section className="grid gap-4">
             <div>
               <h2 className="text-lg font-semibold tracking-tight">Job card</h2>
@@ -895,7 +826,7 @@ export default function Home() {
           </section>
         )}
 
-        {step === 5 && (
+        {step === 4 && (
           <section className="grid gap-4">
             <div>
               <h2 className="text-lg font-semibold tracking-tight">Check it</h2>
@@ -907,7 +838,7 @@ export default function Home() {
             <div className="rounded-xl border bg-card px-4">
               <Row label="Shop" value={selectedShop} />
               <Row label="User" value={signedInUser ? `@${signedInUser.username}` : "Not signed in"} />
-              <Row label="Card" value={selectedCard} />
+              <Row label="Card number" value={selectedCard} />
               <Row label="Slip" value={slipLabel} />
               <Row label="Item photo" value={itemLabel} />
               <Row label="Description" value={description} />
@@ -915,7 +846,6 @@ export default function Home() {
               <Row label="Amount" value={slipAmount || "Not found"} />
               <Row label="Refunds" value={slipRefunds || "Not found"} />
               <Row label="Date and time" value={slipDateTime || "Not found"} />
-              <Row label="Slip card" value={slipCard || "Not found"} />
               <Row label="Notes" value={slipNotes || "None"} />
               <Row
                 label="Job"

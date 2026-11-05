@@ -14,7 +14,7 @@ const paths = [
   {
     href: "/purchase",
     title: "Purchases",
-    detail: "Shop, card, slip, then the item",
+    detail: "Slip, item, then the shop",
     icon: ShoppingBag,
   },
   {
