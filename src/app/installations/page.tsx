@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { FieldShell } from "@/components/field/field-shell";
 import { JobStatusBadge } from "@/components/field/job-status-badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Notice } from "@/components/ui/notice";
 
 type JobStatus = "TODO" | "ACTIVE" | "COMPLETE";
@@ -19,7 +21,19 @@ type JobCard = {
 
 export default function InstallationsPage() {
   const [jobs, setJobs] = useState<JobCard[]>([]);
+  const [query, setQuery] = useState("");
   const [message, setMessage] = useState("Loading job cards...");
+  const visibleJobs = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+
+    if (!needle) {
+      return jobs;
+    }
+
+    return jobs.filter((job) =>
+      [job.title, job.customerName, job.address, job.customerPhone ?? ""].join(" ").toLowerCase().includes(needle),
+    );
+  }, [jobs, query]);
 
   useEffect(() => {
     let cancelled = false;
@@ -53,7 +67,19 @@ export default function InstallationsPage() {
     <FieldShell subtitle="Open a card, then leave notes on site." title="Installations">
       {message ? <Notice>{message}</Notice> : null}
       <div className="grid gap-2">
-        {jobs.map((job) => (
+        <Label htmlFor="installation-search">Search job cards</Label>
+        <Input
+          id="installation-search"
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Name, customer, or address"
+          value={query}
+        />
+      </div>
+      {jobs.length > 0 && visibleJobs.length === 0 ? (
+        <p className="text-sm text-muted-foreground">No job cards match that search.</p>
+      ) : null}
+      <div className="grid gap-2">
+        {visibleJobs.map((job) => (
           <Link
             className="grid gap-1 rounded-xl border bg-card p-4 transition-colors hover:bg-accent"
             href={`/installations/${job.id}`}

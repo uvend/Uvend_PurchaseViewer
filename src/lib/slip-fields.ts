@@ -16,51 +16,147 @@ const moneySource = String.raw`(?:R|ZAR|\$)\s*\d{1,3}(?:[ ,]\d{3})*[.,]\d{2}|\d{
 const moneyInText = new RegExp(moneySource, "i");
 const moneyBefore = new RegExp(String.raw`(${moneySource})\s*$`, "i");
 const currencyMoney = /(?:R|ZAR|\$)\s*\d{1,3}(?:[ ,]\d{3})*[.,]\d{2}/gi;
+const refundLabel = String.raw`\b(?:refunds?|change)\b`;
+const totalLabel = String.raw`\b(?:grand\s+total|total\s+due|amount\s+due|balance\s+due|total)\b`;
+const amountLabel = String.raw`\b(?:sub\s*total|subtotal|amount\s+given|token\s+amount|amount|amt)\b`;
 
 export function parseSlipText(text: string): SlipFields {
-  const source = normalizeSlipText(text);
+  const lined = softenSlipText(text);
+  const lines = lined
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const source = normalizeSlipText(lined);
   const taken: Span[] = [];
 
-  const refunds = takeLabeledMoney(source, /\b(?:refunds?|change)\b/gi, taken, "first");
-  let total = takeLabeledMoney(
-    source,
-    /\b(?:grand\s+total|total\s+due|amount\s+due|balance\s+due|total)\b/gi,
-    taken,
-    "last",
-  );
-  const amount = takeLabeledMoney(
-    source,
-    /\b(?:sub\s*total|subtotal|amount\s+given|token\s+amount|amount|amt)\b/gi,
-    taken,
-    "last",
-  );
+  const refunds = fieldFromLinesOrText(source, lines, refundLabel, taken, "first");
+  let total = fieldFromLinesOrText(source, lines, totalLabel, taken, "last");
+  const amount = fieldFromLinesOrText(source, lines, amountLabel, taken, "last");
 
   if (!total) {
     total =
-      takeLabeledMoney(source, /\bamount\s+given\b/gi, taken, "first") ??
-      takeFirstCurrency(source, taken) ??
-      (amount ? { value: amount.value, span: amount.span } : null);
+      takeLabeledMoney(source, /\bamount\s+given\b/gi, taken, "first")?.value ??
+      takeFirstCurrency(source, taken)?.value ??
+      amount ??
+      "";
   }
   const dateTime = takeDateTime(source, taken);
   const card = takeCard(source, taken);
 
   return {
-    total: total?.value ?? "",
-    amount: amount?.value ?? "",
-    refunds: refunds?.value ?? "",
+    total: total ?? "",
+    amount: amount ?? "",
+    refunds: refunds ?? "",
     dateTime: dateTime?.value ?? "",
     card: card?.value ?? "",
     notes: remainder(source, taken),
   };
 }
 
-function normalizeSlipText(text: string) {
+function fieldFromLinesOrText(
+  source: string,
+  lines: string[],
+  labelSource: string,
+  taken: Span[],
+  which: "first" | "last",
+) {
+  const fromLine = moneyByLabel(lines, labelSource, which);
+
+  if (fromLine && !valueAlreadyTaken(source, fromLine, taken)) {
+    rememberValue(source, fromLine, taken);
+    return fromLine;
+  }
+
+  return takeLabeledMoney(source, new RegExp(labelSource, "gi"), taken, which)?.value ?? "";
+}
+
+function moneyByLabel(lines: string[], labelSource: string, which: "first" | "last") {
+  const found: string[] = [];
+  const label = new RegExp(labelSource, "i");
+  const anyLabel = new RegExp(`${refundLabel}|${totalLabel}|${amountLabel}`, "i");
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    const match = label.exec(line);
+    label.lastIndex = 0;
+
+    if (!match || isSubtotalWord(line, match.index ?? 0, match[0])) {
+      continue;
+    }
+
+    const after = line.slice((match.index ?? 0) + match[0].length);
+    const before = line.slice(0, match.index ?? 0);
+    const next = lines[index + 1] ?? "";
+    const nextValue = anyLabel.test(next) ? null : firstMoney(next);
+    const value = firstMoney(after) ?? lastMoney(before) ?? nextValue;
+
+    if (value) {
+      found.push(value);
+    }
+  }
+
+  return which === "last" ? (found.at(-1) ?? null) : (found[0] ?? null);
+}
+
+function firstMoney(text: string) {
+  const match = text.match(moneyInText);
+  return match?.[0] ? tidyMoney(match[0]) : null;
+}
+
+function lastMoney(text: string) {
+  const matches = [...text.matchAll(new RegExp(moneySource, "gi"))];
+  const last = matches.at(-1);
+  return last ? tidyMoney(last[0]) : null;
+}
+
+function valueAlreadyTaken(text: string, value: string, taken: Span[]) {
+  const span = moneySpan(text, value);
+  return span ? overlaps(span, taken) : false;
+}
+
+function rememberValue(text: string, value: string, taken: Span[]) {
+  const span = moneySpan(text, value);
+
+  if (!span || overlaps(span, taken)) {
+    return;
+  }
+
+  taken.push(span);
+}
+
+function moneySpan(text: string, value: string): Span | null {
+  const compact = value.replace(/\s+/g, "");
+  const body = compact.replace(/^(?:ZAR|R|\$)/i, "");
+  const escaped = body.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const patterns = compact.startsWith("$")
+    ? [`\\$\\s*${escaped}`]
+    : /^(?:zar|r)/i.test(compact)
+      ? [`R\\s*${escaped}`, `ZAR\\s*${escaped}`]
+      : [escaped];
+
+  for (const source of patterns) {
+    const match = new RegExp(source, "i").exec(text);
+
+    if (match) {
+      return spanOf(match);
+    }
+  }
+
+  return null;
+}
+
+function softenSlipText(text: string) {
   return text
     .replace(/[\u00a0\u2000-\u200b\u202f\ufeff]/g, " ")
     .replace(/[＄﹩]/g, "$")
     .replace(/[，]/g, ",")
-    .replace(/\s+/g, " ")
+    .replace(/[^\S\n]+/g, " ")
+    .replace(/ *\n */g, "\n")
     .trim();
+}
+
+function normalizeSlipText(text: string) {
+  return softenSlipText(text).replace(/\s+/g, " ").trim();
 }
 
 function takeLabeledMoney(text: string, label: RegExp, taken: Span[], which: "first" | "last") {

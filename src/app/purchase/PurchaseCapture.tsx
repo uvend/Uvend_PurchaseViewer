@@ -1,6 +1,7 @@
 "use client";
 
 import { ChangeEvent, ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Camera } from "lucide-react";
 import { FieldShell } from "@/components/field/field-shell";
 import { parseSlipText } from "@/lib/slip-fields";
@@ -46,6 +47,7 @@ type JobOption = {
   id: string;
   title: string;
   customerName: string;
+  customerPhone?: string | null;
   address: string;
   status: "TODO" | "ACTIVE" | "COMPLETE";
 };
@@ -111,6 +113,8 @@ export default function Home() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [jobs, setJobs] = useState<JobOption[]>([]);
   const [jobId, setJobId] = useState("");
+  const [jobQuery, setJobQuery] = useState("");
+  const router = useRouter();
   const [slipNote, setSlipNote] = useState("");
   const [itemNote, setItemNote] = useState("");
   const [slipTotal, setSlipTotal] = useState("");
@@ -216,6 +220,25 @@ export default function Home() {
     step,
   ]);
 
+  const visibleJobs = useMemo(() => {
+    const query = jobQuery.trim().toLowerCase();
+
+    return jobs.filter((job) => {
+      if (job.id === jobId) {
+        return true;
+      }
+
+      if (!query) {
+        return true;
+      }
+
+      return [job.title, job.customerName, job.address, job.customerPhone ?? ""]
+        .join(" ")
+        .toLowerCase()
+        .includes(query);
+    });
+  }, [jobId, jobQuery, jobs]);
+
   function nextStep() {
     if (!canContinue) {
       return;
@@ -225,6 +248,11 @@ export default function Home() {
   }
 
   function previousStep() {
+    if (step === 0) {
+      router.push("/");
+      return;
+    }
+
     setStep((currentStep) => Math.max(currentStep - 1, 0));
   }
 
@@ -568,7 +596,7 @@ export default function Home() {
       }
       footer={
         <div className="grid grid-cols-[0.8fr_1.2fr] gap-2">
-          <Button disabled={step === 0} onClick={previousStep} type="button" variant="outline">
+          <Button onClick={previousStep} type="button" variant="outline">
             Back
           </Button>
           {step < stepLabels.length - 1 ? (
@@ -737,14 +765,23 @@ export default function Home() {
             </div>
 
             <div className="grid gap-2">
+              <Label htmlFor="job-search">Search job cards</Label>
+              <Input
+                id="job-search"
+                onChange={(event) => setJobQuery(event.target.value)}
+                placeholder="Name, customer, or address"
+                value={jobQuery}
+              />
               <button className={choiceClass(jobId === "")} onClick={() => setJobId("")} type="button">
                 <span className="block font-medium">No job card</span>
                 <span className="mt-0.5 block text-muted-foreground">You can attach it on the invoice</span>
               </button>
               {jobs.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No job cards yet.</p>
+              ) : visibleJobs.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No job cards match that search.</p>
               ) : (
-                jobs.map((job) => (
+                visibleJobs.map((job) => (
                   <button
                     className={choiceClass(jobId === job.id)}
                     key={job.id}
