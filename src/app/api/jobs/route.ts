@@ -1,15 +1,22 @@
 import { NextResponse } from "next/server";
 import { requireAdmin, requireUser } from "@/lib/auth";
 import { databaseErrorResponse, withDbRetry } from "@/lib/db";
+import { busyMessage, conflictingJob } from "@/lib/job-booking";
+import { readJobSchedule } from "@/lib/job-schedule";
 import { prisma } from "@/lib/prisma";
 
+const personSelect = {
+  id: true,
+  name: true,
+  username: true,
+};
+
 const jobListInclude = {
+  assignedBy: {
+    select: personSelect,
+  },
   assignedUser: {
-    select: {
-      id: true,
-      name: true,
-      username: true,
-    },
+    select: personSelect,
   },
   notes: {
     select: {
@@ -61,8 +68,18 @@ export async function POST(request: Request) {
     customerEmail?: string;
     address: string;
     status?: "TODO" | "ACTIVE" | "COMPLETE";
+    kind?: string;
+    meterNumber?: string;
+    assignedById?: string;
     assignedUserId?: string;
+    startsAt?: string;
+    endsAt?: string;
   };
+  const schedule = readJobSchedule(payload);
+
+  if ("error" in schedule) {
+    return NextResponse.json({ error: schedule.error }, { status: 400 });
+  }
 
   if (!payload.title?.trim() || !payload.customerName?.trim() || !payload.address?.trim()) {
     return NextResponse.json(
@@ -72,6 +89,12 @@ export async function POST(request: Request) {
   }
 
   try {
+    const clash = await conflictingJob(schedule.assignedUserId, schedule.startsAt, schedule.endsAt);
+
+    if (clash) {
+      return NextResponse.json({ error: busyMessage(clash) }, { status: 409 });
+    }
+
     const job = await withDbRetry(() => prisma.job.create({
       data: {
         title: payload.title.trim(),
@@ -80,7 +103,12 @@ export async function POST(request: Request) {
         customerEmail: payload.customerEmail?.trim() || null,
         address: payload.address.trim(),
         status: payload.status ?? "TODO",
-        assignedUserId: payload.assignedUserId || null,
+        kind: schedule.kind,
+        meterNumber: schedule.meterNumber,
+        assignedById: schedule.assignedById,
+        assignedUserId: schedule.assignedUserId,
+        startsAt: schedule.startsAt,
+        endsAt: schedule.endsAt,
       },
       include: jobListInclude,
     }));

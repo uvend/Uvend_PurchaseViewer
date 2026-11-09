@@ -15,7 +15,8 @@ model User {
   role         UserRole     @default(USER)
   purchases    Purchase[]
   loginEvents  LoginEvent[]
-  assignedJobs Job[]
+  assignedJobs Job[]        @relation("JobAssignee")
+  jobsAssigned Job[]        @relation("JobAssigner")
   jobNotes     JobNote[]
   invoices     Invoice[]
   createdAt    DateTime     @default(now())
@@ -99,6 +100,11 @@ enum JobStatus {
   COMPLETE
 }
 
+enum JobKind {
+  NEW_METER
+  METER_REPLACEMENT
+}
+
 enum InvoiceItemKind {
   LABOUR
   MATERIALS
@@ -113,8 +119,14 @@ model Job {
   customerEmail  String?
   address        String
   status         JobStatus  @default(TODO)
+  kind           JobKind?
+  meterNumber    String?
+  assignedById   String?
+  assignedBy     User?      @relation("JobAssigner", fields: [assignedById], references: [id])
   assignedUserId String?
-  assignedUser   User?      @relation(fields: [assignedUserId], references: [id])
+  assignedUser   User?      @relation("JobAssignee", fields: [assignedUserId], references: [id])
+  startsAt       DateTime?
+  endsAt         DateTime?
   notes          JobNote[]
   invoices       Invoice[]
   purchases      Purchase[]

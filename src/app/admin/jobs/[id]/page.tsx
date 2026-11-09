@@ -6,6 +6,7 @@ import { AdminFrame } from "../../AdminFrame";
 import { JobStatusBadge } from "@/components/field/job-status-badge";
 import { Button } from "@/components/ui/button";
 import { Notice } from "@/components/ui/notice";
+import { formatSlot, kindLabel, personName, type JobKind } from "@/lib/job-schedule";
 
 type JobStatus = "TODO" | "ACTIVE" | "COMPLETE";
 
@@ -17,6 +18,11 @@ type JobDetail = {
   customerEmail: string | null;
   address: string;
   status: JobStatus;
+  kind: JobKind | null;
+  meterNumber: string | null;
+  startsAt: string | null;
+  endsAt: string | null;
+  assignedBy: { name: string | null; username: string | null } | null;
   assignedUser: { name: string | null; username: string | null } | null;
   notes: {
     id: string;
@@ -98,9 +104,15 @@ export default function AdminJobDetailPage() {
           <h2 className="text-base font-semibold">{job.customerName}</h2>
           <p className="text-muted-foreground">{job.address}</p>
           {job.customerPhone ? <p className="text-muted-foreground">{job.customerPhone}</p> : null}
-          {job.assignedUser ? (
+          <p className="text-muted-foreground">{kindLabel(job.kind)}</p>
+          {job.meterNumber ? <p className="text-muted-foreground">Meter {job.meterNumber}</p> : null}
+          <p className="text-muted-foreground">Assigned by {personName(job.assignedBy) || "not recorded"}</p>
+          <p className="text-muted-foreground">Assigned to {personName(job.assignedUser) || "nobody"}</p>
+          {job.startsAt && job.endsAt ? (
             <p className="text-muted-foreground">
-              Assigned: {job.assignedUser.name || job.assignedUser.username}
+              {job.status === "COMPLETE"
+                ? `${personName(job.assignedUser) || "The field user"} is available again. The slot was ${formatSlot(job.startsAt, job.endsAt)}.`
+                : `${personName(job.assignedUser) || "The field user"} is unavailable ${formatSlot(job.startsAt, job.endsAt)}.`}
             </p>
           ) : null}
           <div className="flex flex-wrap gap-2">

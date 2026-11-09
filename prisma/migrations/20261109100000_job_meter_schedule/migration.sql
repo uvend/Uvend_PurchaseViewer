@@ -1,0 +1,12 @@
+-- CreateEnum
+CREATE TYPE "JobKind" AS ENUM ('NEW_METER', 'METER_REPLACEMENT');
+
+-- AlterTable
+ALTER TABLE "Job" ADD COLUMN "kind" "JobKind";
+ALTER TABLE "Job" ADD COLUMN "meterNumber" TEXT;
+ALTER TABLE "Job" ADD COLUMN "assignedById" TEXT;
+ALTER TABLE "Job" ADD COLUMN "startsAt" TIMESTAMP(3);
+ALTER TABLE "Job" ADD COLUMN "endsAt" TIMESTAMP(3);
+
+-- AddForeignKey
+ALTER TABLE "Job" ADD CONSTRAINT "Job_assignedById_fkey" FOREIGN KEY ("assignedById") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;

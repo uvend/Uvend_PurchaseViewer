@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { databaseErrorResponse, withDbRetry } from "@/lib/db";
+import { formatSlot, kindLabel, personName } from "@/lib/job-schedule";
 import { pdfFileName, renderJobCard } from "@/lib/pdf";
 import { prisma } from "@/lib/prisma";
 
@@ -21,6 +22,7 @@ export async function GET(
       prisma.job.findUnique({
         where: { id },
         include: {
+          assignedBy: { select: { name: true, username: true } },
           assignedUser: { select: { name: true, username: true } },
           notes: {
             orderBy: { createdAt: "asc" },
@@ -50,7 +52,11 @@ export async function GET(
       customerEmail: job.customerEmail,
       address: job.address,
       createdAt: job.createdAt,
-      assignedTo: job.assignedUser?.name || job.assignedUser?.username || null,
+      kind: kindLabel(job.kind),
+      meterNumber: job.meterNumber,
+      assignedBy: personName(job.assignedBy) || null,
+      assignedTo: personName(job.assignedUser) || null,
+      slot: job.startsAt && job.endsAt ? formatSlot(job.startsAt, job.endsAt) : null,
       notes: job.notes.map((note) => ({
         text: note.text,
         source: note.source,

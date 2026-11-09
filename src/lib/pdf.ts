@@ -43,7 +43,11 @@ export type JobCardDocument = {
   customerEmail: string | null;
   address: string;
   createdAt: Date;
+  kind: string | null;
+  meterNumber: string | null;
+  assignedBy: string | null;
   assignedTo: string | null;
+  slot: string | null;
   notes: {
     text: string;
     source: string;
@@ -119,13 +123,17 @@ export async function renderJobCard(card: JobCardDocument) {
     card.address,
     card.customerPhone ? `Mobile: ${card.customerPhone}` : null,
     card.customerEmail ? `Email: ${card.customerEmail}` : null,
+    card.meterNumber ? `Meter: ${card.meterNumber}` : null,
+    card.slot,
   ].filter((line): line is string => Boolean(line));
 
   sheet.parties("Customer", customer, [
     ["Job :", card.title],
+    ["Type :", card.kind || "Job"],
     ["Status :", statusLabel(card.status)],
     ["Opened :", formatDate(card.createdAt, false)],
-    ["Assigned :", card.assignedTo || "Unassigned"],
+    ["Assigned by :", card.assignedBy || "—"],
+    ["Assigned to :", card.assignedTo || "Unassigned"],
   ]);
 
   const notes =
