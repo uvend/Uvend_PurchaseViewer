@@ -23,6 +23,8 @@ type PurchaseMapProps = {
   selectedPurchaseId?: string;
   onSelectPurchase: (purchaseId: string) => void;
   loading: boolean;
+  heightClassName?: string;
+  framed?: boolean;
 };
 
 const southAfricaCenter: [number, number] = [24.5, -29.1];
@@ -32,6 +34,8 @@ export function TomTomPurchaseMap({
   selectedPurchaseId,
   onSelectPurchase,
   loading,
+  heightClassName = "h-[520px]",
+  framed = true,
 }: PurchaseMapProps) {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<TomTomMap | null>(null);
@@ -145,8 +149,8 @@ export function TomTomPurchaseMap({
   }
 
   return (
-    <div className="relative overflow-hidden rounded-xl border">
-      <div className="h-[520px] w-full bg-muted" ref={mapContainerRef} />
+    <div className={framed ? "relative overflow-hidden rounded-xl border" : "relative overflow-hidden rounded-xl"}>
+      <div className={`${heightClassName} w-full bg-muted`} ref={mapContainerRef} />
       {!loading && mappedPurchases.length === 0 ? (
         <p className="pointer-events-none absolute inset-0 grid place-items-center text-sm font-medium text-muted-foreground">
           No GPS purchases match these filters.
@@ -178,7 +182,7 @@ function renderMarkers(
     element.style.height = purchase.id === selectedPurchaseId ? "16px" : "12px";
     element.style.borderRadius = "999px";
     element.style.border = "2px solid white";
-    element.style.background = purchase.id === selectedPurchaseId ? "#18181b" : "#71717a";
+    element.style.background = purchase.id === selectedPurchaseId ? "#16a34a" : "#2f6bff";
     element.style.boxShadow = "0 1px 4px rgba(0,0,0,0.35)";
     element.style.cursor = "pointer";
     element.addEventListener("click", () => onSelectPurchase?.(purchase.id));

@@ -43,7 +43,6 @@ export function FieldShell({
   children,
   footer,
   headerExtra,
-  tone = "default",
   showNav = true,
 }: {
   title: string;
@@ -56,9 +55,9 @@ export function FieldShell({
   showNav?: boolean;
 }) {
   const pathname = usePathname();
-  const navy = tone === "navy";
+  const home = pathname === "/";
   const [isAdmin, setIsAdmin] = useState(false);
-  const nav = isAdmin ? [adminNav, ...fieldNav] : fieldNav;
+  const nav = isAdmin ? [...fieldNav, adminNav] : fieldNav;
 
   useEffect(() => {
     let cancelled = false;
@@ -85,51 +84,41 @@ export function FieldShell({
   }, []);
 
   return (
-    <div className="min-h-svh bg-muted/50">
-      <div className="mx-auto flex min-h-svh w-full max-w-lg flex-col bg-background sm:border-x">
-        <header
-          className={cn(
-            "sticky top-0 z-20 border-b px-3 py-3",
-            navy ? "border-blue-900 bg-blue-950 text-white" : "bg-background/95 backdrop-blur",
-          )}
-        >
-          <div className="flex items-center gap-2">
+    <div className="min-h-svh bg-[#e7edf6]">
+      <div className="mx-auto flex min-h-svh w-full max-w-lg flex-col bg-[#f4f7fb] sm:border-x sm:border-slate-200">
+        <header className="relative sticky top-0 z-20 overflow-hidden bg-[#0b1c3d] text-white">
+          <svg className="pointer-events-none absolute top-0 right-0 h-full w-36 opacity-50" viewBox="0 0 140 80" aria-hidden>
+            <path d="M40 0 C 70 20, 90 10, 140 28 L 140 0 Z" fill="#16325c" />
+            <path d="M70 80 C 100 50, 120 70, 140 48 L 140 80 Z" fill="#1d4f91" />
+          </svg>
+          <div className="relative flex items-center gap-2 px-4 py-3.5">
             {backHref ? (
               <Link
                 aria-label="Back"
-                className={cn(
-                  "inline-flex size-9 items-center justify-center rounded-md",
-                  navy ? "hover:bg-white/10" : "hover:bg-accent",
-                )}
+                className="inline-flex size-9 items-center justify-center rounded-lg hover:bg-white/10"
                 href={backHref}
               >
                 <ChevronLeft className="size-4" />
               </Link>
             ) : null}
+            {home ? <BrandMark /> : null}
             <div className="min-w-0 flex-1">
-              <h1 className="truncate text-base font-semibold tracking-tight">{title}</h1>
-              {subtitle ? (
-                <p className={cn("truncate text-sm", navy ? "text-blue-200" : "text-muted-foreground")}>
-                  {subtitle}
-                </p>
-              ) : null}
+              <h1 className="truncate text-base font-semibold tracking-tight">{home ? "Uvend" : title}</h1>
+              {!home && subtitle ? <p className="truncate text-sm text-slate-300">{subtitle}</p> : null}
             </div>
-            <AdminLogoutButton
-              className={navy ? "text-blue-100 hover:bg-white/10 hover:text-white" : undefined}
-              redirectTo="/login"
-            />
+            <AdminLogoutButton className="text-white hover:bg-white/10 hover:text-white" icon redirectTo="/login" />
           </div>
-          {headerExtra}
+          {headerExtra ? <div className="relative px-4 pb-3">{headerExtra}</div> : null}
         </header>
 
         <main className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 py-5">{children}</main>
 
-        {footer ? <div className="border-t bg-background p-3">{footer}</div> : null}
+        {footer ? <div className="border-t border-slate-200 bg-white p-3">{footer}</div> : null}
 
         {showNav ? (
           <nav
             className={cn(
-              "grid border-t bg-background pb-[env(safe-area-inset-bottom)]",
+              "grid border-t border-slate-200 bg-white px-1 pt-1 pb-[max(0.35rem,env(safe-area-inset-bottom))]",
               nav.length > 4 ? "grid-cols-5" : "grid-cols-4",
             )}
           >
@@ -140,8 +129,8 @@ export function FieldShell({
               return (
                 <Link
                   className={cn(
-                    "flex min-w-0 flex-col items-center gap-1 px-1 py-2.5 text-[11px] text-muted-foreground",
-                    active && "text-foreground",
+                    "flex min-w-0 flex-col items-center gap-1 rounded-xl px-1 py-2 text-[11px] text-slate-400",
+                    active && "bg-blue-50 font-medium text-[#2f6bff]",
                   )}
                   href={item.href}
                   key={item.href}
@@ -155,5 +144,14 @@ export function FieldShell({
         ) : null}
       </div>
     </div>
+  );
+}
+
+function BrandMark() {
+  return (
+    <span className="relative size-8 shrink-0" aria-hidden>
+      <span className="absolute top-0 left-0 size-4 rounded-md bg-sky-400" />
+      <span className="absolute right-0 bottom-0 size-4 rounded-md bg-[#2f6bff] ring-2 ring-[#0b1c3d]" />
+    </span>
   );
 }

@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { Plus } from "lucide-react";
 import { AdminFrame } from "../AdminFrame";
 import { JobWeek } from "@/components/admin/job-week";
 import { JobStatusBadge } from "@/components/field/job-status-badge";
@@ -9,7 +10,9 @@ import { Button } from "@/components/ui/button";
 import { controlClass, Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Notice } from "@/components/ui/notice";
+import { panelClass } from "@/components/admin/panel";
 import { defaultTimeSlot, formatSlot, isJobKind, jobKindLabel, jobKinds, kindLabel, personName, type JobKind } from "@/lib/job-schedule";
+import { initials } from "@/lib/format";
 
 type JobStatus = "TODO" | "ACTIVE" | "COMPLETE";
 type StaffRole = "USER" | "INSTALLER" | "ADMIN";
@@ -76,6 +79,7 @@ export default function AdminJobsPage() {
   const [filter, setFilter] = useState<"ALL" | JobStatus>("ALL");
   const [form, setForm] = useState<JobForm>(emptyForm);
   const [message, setMessage] = useState("");
+  const [creating, setCreating] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -142,6 +146,7 @@ export default function AdminJobsPage() {
       assignedById: current.assignedById,
     }));
     setMessage("Job card created. That person is unavailable for the time slot.");
+    setCreating(false);
     await loadJobs();
   }
 
@@ -161,7 +166,16 @@ export default function AdminJobsPage() {
   }
 
   return (
-    <AdminFrame kicker="Jobs" title="Job cards">
+    <AdminFrame
+      actions={
+        <Button onClick={() => setCreating((current) => !current)} type="button">
+          <Plus />
+          {creating ? "Close" : "New job"}
+        </Button>
+      }
+      kicker="Job cards for field staff"
+      title="Jobs"
+    >
       <div className="flex flex-wrap gap-2">
         {(["ALL", "TODO", "ACTIVE", "COMPLETE"] as const).map((status) => (
           <Button
@@ -178,9 +192,10 @@ export default function AdminJobsPage() {
 
       {message ? <Notice>{message}</Notice> : null}
 
-      <section className="grid gap-4 lg:grid-cols-[minmax(280px,0.9fr)_minmax(0,1.1fr)]">
-        <form className="grid h-fit gap-4 rounded-xl border bg-card p-5" onSubmit={createJob}>
-          <h2 className="text-base font-semibold tracking-tight">New job card</h2>
+      {creating ? (
+      <section className="grid gap-4">
+        <form className={`${panelClass} grid h-fit max-w-3xl gap-4 p-5 lg:grid-cols-2`} id="new-job" onSubmit={createJob}>
+          <h2 className="text-base font-semibold tracking-tight lg:col-span-2">New job card</h2>
           <div className="grid gap-2">
             <Label htmlFor="job-kind">Job type</Label>
             <select className={controlClass} id="job-kind" onChange={(event) => chooseKind(event.target.value)} value={form.kind}>
@@ -277,41 +292,64 @@ export default function AdminJobsPage() {
               />
             </div>
           </div>
-          <Button type="submit">Add job card</Button>
+          <Button className="lg:col-span-2 lg:justify-self-start" type="submit">Add job card</Button>
         </form>
+      </section>
+      ) : null}
 
-        <div className="rounded-xl border bg-card p-5">
-          <h2 className="mb-4 text-base font-semibold tracking-tight">{visible.length} jobs</h2>
-          <div className="grid gap-2">
-            {visible.map((job) => (
-              <Link
-                className="grid gap-1 rounded-lg border p-4 text-sm transition-colors hover:bg-accent"
-                href={`/admin/jobs/${job.id}`}
-                key={job.id}
-              >
-                <JobStatusBadge status={job.status} />
-                <strong>{job.title}</strong>
-                <span className="text-muted-foreground">
-                  {kindLabel(job.kind)}
-                  {job.meterNumber ? ` · Meter ${job.meterNumber}` : ""}
-                </span>
-                <span className="text-muted-foreground">{job.customerName}</span>
-                <span className="text-muted-foreground">{job.address}</span>
-                <span className="text-muted-foreground">
-                  {personName(job.assignedUser) ? `Assigned to ${personName(job.assignedUser)}` : "Unassigned"}
-                  {personName(job.assignedBy) ? ` · by ${personName(job.assignedBy)}` : ""}
-                </span>
-                {job.startsAt && job.endsAt ? (
-                  <span className="text-muted-foreground">
-                    {job.status === "COMPLETE" ? "Available again" : "Unavailable"} · {formatSlot(job.startsAt, job.endsAt)}
-                  </span>
-                ) : null}
-                <span className="text-muted-foreground">
-                  {job.notes.length} notes · {job.invoices.length} invoices
-                </span>
-              </Link>
-            ))}
-          </div>
+      <section className={panelClass}>
+        <div className="px-5 pt-4">
+          <h2 className="text-sm font-semibold">{visible.length} jobs</h2>
+          <p className="text-xs text-slate-500">Open a card for notes, the invoice, and the PDF</p>
+        </div>
+        <div className="overflow-x-auto px-2 pt-2 pb-3">
+          <table className="w-full min-w-[860px] text-left text-sm">
+            <thead>
+              <tr className="text-xs font-medium text-slate-500">
+                <th className="px-3 py-3">Job</th>
+                <th className="px-3 py-3">Customer</th>
+                <th className="px-3 py-3">Type</th>
+                <th className="px-3 py-3">Assigned</th>
+                <th className="px-3 py-3">Slot</th>
+                <th className="px-3 py-3">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visible.map((job) => {
+                const assignee = personName(job.assignedUser) || "Unassigned";
+
+                return (
+                  <tr className="border-t border-slate-100 hover:bg-slate-50" key={job.id}>
+                    <td className="px-3 py-3">
+                      <Link className="font-medium hover:underline" href={`/admin/jobs/${job.id}`}>
+                        {job.title}
+                      </Link>
+                      <span className="block text-xs text-slate-500">
+                        {job.meterNumber ? `Meter ${job.meterNumber}` : job.address}
+                      </span>
+                    </td>
+                    <td className="px-3 py-3 text-slate-600">{job.customerName}</td>
+                    <td className="px-3 py-3 text-slate-600">{kindLabel(job.kind)}</td>
+                    <td className="px-3 py-3">
+                      <span className="inline-flex items-center gap-2">
+                        <span className="grid size-7 place-items-center rounded-full bg-slate-100 text-[10px] font-semibold text-slate-600">
+                          {initials(assignee)}
+                        </span>
+                        {assignee}
+                      </span>
+                    </td>
+                    <td className="px-3 py-3 text-slate-600">
+                      {job.startsAt && job.endsAt ? formatSlot(job.startsAt, job.endsAt) : "—"}
+                    </td>
+                    <td className="px-3 py-3">
+                      <JobStatusBadge status={job.status} />
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          {visible.length === 0 ? <p className="px-3 py-6 text-sm text-slate-500">No jobs in this filter.</p> : null}
         </div>
       </section>
 

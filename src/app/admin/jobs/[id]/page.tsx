@@ -88,18 +88,18 @@ export default function AdminJobDetailPage() {
 
   if (!job) {
     return (
-      <AdminFrame kicker="Jobs" title="Job card">
+      <AdminFrame kicker="Job card" title="Job">
         <p className="text-sm text-muted-foreground">Loading job...</p>
       </AdminFrame>
     );
   }
 
   return (
-    <AdminFrame kicker="Jobs" title={job.title}>
+    <AdminFrame kicker="Job card" title={job.title}>
       {message ? <Notice>{message}</Notice> : null}
 
       <section className="grid gap-4 lg:grid-cols-3">
-        <article className="grid h-fit gap-3 rounded-xl border bg-card p-5 text-sm">
+        <article className="grid h-fit gap-3 rounded-2xl border border-slate-200/80 bg-white p-5 text-sm shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
           <JobStatusBadge status={job.status} />
           <h2 className="text-base font-semibold">{job.customerName}</h2>
           <p className="text-muted-foreground">{job.address}</p>
@@ -131,7 +131,7 @@ export default function AdminJobDetailPage() {
           </div>
         </article>
 
-        <article className="grid gap-3 rounded-xl border bg-card p-5">
+        <article className="grid gap-3 rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
           <h2 className="text-base font-semibold tracking-tight">Notes</h2>
           {job.notes.map((note) => (
             <article className="grid gap-1 rounded-lg border p-3 text-sm" key={note.id}>
@@ -147,7 +147,7 @@ export default function AdminJobDetailPage() {
           {job.notes.length === 0 ? <p className="text-sm text-muted-foreground">No notes yet.</p> : null}
         </article>
 
-        <article className="grid gap-3 rounded-xl border bg-card p-5">
+        <article className="grid gap-3 rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
           <h2 className="text-base font-semibold tracking-tight">Invoices</h2>
           {job.invoices.map((invoice) => (
             <article className="grid gap-1 rounded-lg border p-3 text-sm" key={invoice.id}>
