@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ChevronRight, FileText, ShoppingBag, Wrench } from "lucide-react";
+import { ChevronRight, ShoppingBag, Wrench } from "lucide-react";
 import { FieldShell } from "@/components/field/field-shell";
 import { cn } from "@/lib/utils";
 
@@ -10,7 +10,7 @@ const paths = [
   {
     href: "/purchase",
     title: "Make a purchase",
-    detail: "Slip, item, then the shop",
+    detail: "Slip, then the item",
     icon: ShoppingBag,
     bar: "border-l-[#2f6bff]",
     iconClass: "bg-blue-50 text-[#2f6bff]",
@@ -22,14 +22,6 @@ const paths = [
     icon: Wrench,
     bar: "border-l-violet-500",
     iconClass: "bg-violet-50 text-violet-600",
-  },
-  {
-    href: "/invoices",
-    title: "View invoices",
-    detail: "Bill a job and add what was bought",
-    icon: FileText,
-    bar: "border-l-emerald-500",
-    iconClass: "bg-emerald-50 text-emerald-600",
   },
 ];
 

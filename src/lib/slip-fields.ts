@@ -1,4 +1,22 @@
+export const knownShops = [
+  "Builders",
+  "Plumblink",
+  "Astore",
+  "Midas",
+  "Masterparts",
+  "Brights",
+  "Cashbuild",
+  "BUCO",
+  "Build It",
+  "Progress",
+  "ABM Plumblink",
+  "AutoZone",
+  "Agrimark",
+  "Sparesboyz",
+] as const;
+
 export type SlipFields = {
+  shop: string;
   total: string;
   amount: string;
   refunds: string;
@@ -69,6 +87,7 @@ export function parseSlipText(text: string): SlipFields {
   const card = takeCard(source, taken);
 
   return {
+    shop: takeShop(source, lines),
     total: total ?? "",
     amount,
     refunds,
@@ -76,6 +95,34 @@ export function parseSlipText(text: string): SlipFields {
     card: card?.value ?? "",
     notes: notesFromLines(lines, starts, taken),
   };
+}
+
+function takeShop(text: string, lines: string[]) {
+  const folded = text.toLowerCase();
+  const known = knownShops.find((shop) => folded.includes(shop.toLowerCase()));
+
+  if (known) {
+    return known;
+  }
+
+  const skip =
+    /^(tax invoice|vat invoice|invoice|receipt|till slip|customer copy|merchant copy|welcome|thank you|duplicate)$/i;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+
+    if (trimmed.length < 3 || trimmed.length > 40 || skip.test(trimmed)) {
+      continue;
+    }
+
+    if (!/[A-Za-z]{3,}/.test(trimmed) || /\d{1,2}[-/]\d{1,2}/.test(trimmed)) {
+      continue;
+    }
+
+    return trimmed;
+  }
+
+  return "";
 }
 
 function collectCandidates(lines: string[], starts: number[]) {

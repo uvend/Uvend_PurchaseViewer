@@ -7,6 +7,7 @@ import {
   BarChart3,
   Briefcase,
   ChevronDown,
+  CreditCard,
   LayoutDashboard,
   MapPin,
   ScrollText,
@@ -39,6 +40,13 @@ const nav = [
     icon: ScrollText,
     adminOnly: true,
     match: (path: string) => path.startsWith("/admin/logs"),
+  },
+  {
+    href: "/admin/cards",
+    label: "Cards",
+    icon: CreditCard,
+    adminOnly: true,
+    match: (path: string) => path.startsWith("/admin/cards"),
   },
   {
     href: "/admin/users",

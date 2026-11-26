@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Camera } from "lucide-react";
 import { FieldShell } from "@/components/field/field-shell";
 import { captureGps } from "@/lib/location";
-import { parseSlipText } from "@/lib/slip-fields";
+import { knownShops, parseSlipText } from "@/lib/slip-fields";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -53,24 +53,11 @@ type JobOption = {
   status: "TODO" | "ACTIVE" | "COMPLETE";
 };
 
-const shops = [
-  "Builders",
-  "Plumblink",
-  "Astore",
-  "Midas",
-  "Masterparts",
-  "Brights",
-  "Cashbuild",
-  "BUCO",
-  "Build It",
-  "Progress",
-  "ABM Plumblink",
-  "AutoZone",
-  "Agrimark",
-  "Sparesboyz",
-  "Small hardware nearby",
-  "Other shop",
-];
+type CompanyCard = {
+  id: string;
+  name: string;
+  lastFour: string;
+};
 
 const starterLabels: ReusableLabel[] = [
   {
@@ -93,13 +80,12 @@ const starterLabels: ReusableLabel[] = [
   },
 ];
 
-const stepLabels = ["Slip", "Item", "Shop", "Details", "Confirm"];
+const stepLabels = ["Slip", "Item", "Details", "Confirm"];
 
 export default function Home() {
   const [step, setStep] = useState(0);
   const [signedInUser, setSignedInUser] = useState<SignedInUser | null>(null);
   const [shop, setShop] = useState("");
-  const [customShop, setCustomShop] = useState("");
   const [slipPhoto, setSlipPhoto] = useState<PhotoState | null>(null);
   const [itemPhoto, setItemPhoto] = useState<PhotoState | null>(null);
   const [slipLabel, setSlipLabel] = useState("Slip pic");
@@ -127,15 +113,12 @@ export default function Home() {
   const [slipNotes, setSlipNotes] = useState("");
   const [ocrCapture, setOcrCapture] = useState<OcrCapture | null>(null);
   const [ocrStatus, setOcrStatus] = useState<"idle" | "reading" | "done" | "failed">("idle");
+  const [cardFromOcr, setCardFromOcr] = useState(false);
+  const [companyCards, setCompanyCards] = useState<CompanyCard[]>([]);
   const ocrRequest = useRef(0);
   const filledByOcr = useRef(false);
 
-  const selectedShop =
-    shop === ""
-      ? "Not recorded"
-      : shop === "Other shop"
-        ? customShop || "Custom shop"
-        : shop;
+  const selectedShop = shop.trim() || "Not recorded";
   const selectedCard = slipCard.trim() || "Not found";
   const progressWidth = `${((step + 1) / stepLabels.length) * 100}%`;
 
@@ -155,6 +138,30 @@ export default function Home() {
     }
 
     loadSession();
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadCards() {
+      const response = await fetch("/api/cards");
+
+      if (!response.ok) {
+        return;
+      }
+
+      const data = (await response.json()) as { cards: CompanyCard[] };
+
+      if (!cancelled) {
+        setCompanyCards(data.cards);
+      }
+    }
+
+    void loadCards();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -181,7 +188,6 @@ export default function Home() {
     };
   }, []);
 
-  const customShopError = shop === "Other shop" && !customShop.trim() ? "Enter the shop name." : "";
   const descriptionError = description.trim() ? "" : "Add a description.";
   const slipLabelError = slipLabel.trim() ? "" : "Add a slip label.";
   const itemLabelError = itemLabel.trim() ? "" : "Add an item label.";
@@ -199,16 +205,11 @@ export default function Home() {
     }
 
     if (step === 2) {
-      return !customShopError;
-    }
-
-    if (step === 3) {
       return !descriptionError && !slipLabelError && !itemLabelError;
     }
 
     return true;
   }, [
-    customShopError,
     descriptionError,
     itemLabelError,
     itemPhotoError,
@@ -242,7 +243,7 @@ export default function Home() {
       return;
     }
 
-    if (step === 2) {
+    if (step === 1) {
       setLocating(true);
       setGpsNotice("");
       const fix = await captureGps();
@@ -323,6 +324,8 @@ export default function Home() {
       setSlipRefunds("");
       setSlipDateTime("");
       setSlipCard("");
+      setCardFromOcr(false);
+      setShop("");
       setOcrCapture(null);
       setOcrStatus("idle");
       if (filledByOcr.current) {
@@ -347,8 +350,7 @@ export default function Home() {
   }
 
   function applyPinnedLabel(label: ReusableLabel) {
-    setShop(shops.includes(label.shop) ? label.shop : "Other shop");
-    setCustomShop(shops.includes(label.shop) ? "" : label.shop);
+    setShop(label.shop === "Not recorded" ? "" : label.shop);
     setSlipLabel(label.slipLabel);
     setItemLabel(label.itemLabel);
     setDescription(label.description);
@@ -357,7 +359,6 @@ export default function Home() {
   function resetFlow(message?: string) {
     setStep(0);
     setShop("");
-    setCustomShop("");
     setSlipPhoto(null);
     setItemPhoto(null);
     setSlipLabel("Slip pic");
@@ -370,6 +371,7 @@ export default function Home() {
     setSlipRefunds("");
     setSlipDateTime("");
     setSlipCard("");
+    setCardFromOcr(false);
     setOcrCapture(null);
     setOcrStatus("idle");
     filledByOcr.current = false;
@@ -410,6 +412,7 @@ export default function Home() {
         imageWidth?: number | null;
         imageHeight?: number | null;
         fields?: {
+          shop: string;
           total: string;
           amount: string;
           refunds: string;
@@ -432,11 +435,13 @@ export default function Home() {
 
       const text = data.text?.trim() ?? "";
       const fields = data.fields ?? parseSlipText(text);
+      setShop(fields.shop);
       setSlipTotal(fields.total);
       setSlipAmount(fields.amount);
       setSlipRefunds(fields.refunds);
       setSlipDateTime(fields.dateTime);
       setSlipCard(fields.card);
+      setCardFromOcr(Boolean(fields.card));
       setSlipNotes(fields.notes);
       const summary = [
         fields.total && `Total ${fields.total}`,
@@ -499,7 +504,7 @@ export default function Home() {
 
     if (coordinates.latitude == null || coordinates.longitude == null) {
       setGpsNotice("Please Try Again");
-      setStep(2);
+      setStep(1);
       return;
     }
 
@@ -514,7 +519,7 @@ export default function Home() {
         },
         body: JSON.stringify({
           shopName: selectedShop,
-          customShop: shop === "Other shop",
+          customShop: Boolean(shop.trim()) && !knownShops.some((name) => name.toLowerCase() === shop.trim().toLowerCase()),
           cardLabel: selectedCard,
           description,
           slipTotal,
@@ -611,56 +616,6 @@ export default function Home() {
     >
       {submitMessage ? <Notice>{submitMessage}</Notice> : null}
 
-        {step === 2 && (
-          <section className="grid gap-4">
-            <div>
-              <h2 className="text-lg font-semibold tracking-tight">Which shop?</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Shop is optional. Continue takes your location in the background.
-              </p>
-            </div>
-            {gpsNotice ? (
-              <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">
-                {gpsNotice}
-              </p>
-            ) : null}
-
-            <Button onClick={() => setShop("")} type="button" variant={shop === "" ? "default" : "outline"}>
-              Skip shop
-            </Button>
-
-            <div className="grid grid-cols-2 gap-2">
-              {shops.map((shopName) => (
-                <Button
-                  className="h-auto min-h-11 whitespace-normal px-3 py-3"
-                  key={shopName}
-                  onClick={() => setShop(shopName)}
-                  type="button"
-                  variant={shop === shopName ? "default" : "outline"}
-                >
-                  {shopName}
-                </Button>
-              ))}
-            </div>
-
-            {shop === "Other shop" && (
-              <div className="grid gap-2">
-                <Label htmlFor="custom-shop">Custom shop name</Label>
-                <Input
-                  aria-invalid={customShopError ? true : undefined}
-                  autoComplete="organization"
-                  id="custom-shop"
-                  onChange={(event) => setCustomShop(event.target.value)}
-                  placeholder="Enter supplier"
-                  value={customShop}
-                />
-                <FieldError message={customShopError} />
-              </div>
-            )}
-
-            </section>
-        )}
-
         {step === 0 && (
           <>
             <CaptureScreen
@@ -673,24 +628,48 @@ export default function Home() {
               onRedo={redoPhoto}
               photo={slipPhoto}
             >
-              {slipPhoto ? (
+              {slipPhoto && ocrStatus !== "reading" ? (
                 <div className="grid gap-3">
-                  <SlipField id="slip-total" label="Total" onChange={setSlipTotal} value={slipTotal} />
-                  <SlipField id="slip-amount" label="Amount" onChange={setSlipAmount} value={slipAmount} />
-                  <SlipField id="slip-refunds" label="Refunds" onChange={setSlipRefunds} value={slipRefunds} />
-                  <SlipField id="slip-when" label="Date and time" onChange={setSlipDateTime} value={slipDateTime} />
-                  <SlipField id="slip-card" label="Card number" onChange={setSlipCard} value={slipCard} />
-                  <div className="grid gap-2">
-                    <Label htmlFor="slip-notes">Notes</Label>
-                    <Textarea
-                      className="min-h-32 leading-6"
-                      id="slip-notes"
-                      onChange={(event) => setSlipNotes(event.target.value)}
-                      placeholder={slipNote === "Reading the slip..." ? "Reading the slip..." : "The rest of the slip"}
-                      rows={6}
-                      value={slipNotes}
-                    />
-                  </div>
+                  {slipTotal ? <SlipField id="slip-total" label="Total" onChange={setSlipTotal} value={slipTotal} /> : null}
+                  {slipAmount ? <SlipField id="slip-amount" label="Amount" onChange={setSlipAmount} value={slipAmount} /> : null}
+                  {slipRefunds ? <SlipField id="slip-refunds" label="Refunds" onChange={setSlipRefunds} value={slipRefunds} /> : null}
+                  {slipDateTime ? <SlipField id="slip-when" label="Date and time" onChange={setSlipDateTime} value={slipDateTime} /> : null}
+                  {cardFromOcr ? <SlipField id="slip-card" label="Card number" onChange={setSlipCard} value={slipCard} /> : null}
+                  {!cardFromOcr ? (
+                    <div className="grid gap-2">
+                      <Label>Card</Label>
+                      {companyCards.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">No saved cards yet. Ask admin to add one.</p>
+                      ) : (
+                        companyCards.map((card) => {
+                          const label = `${card.name} **** ${card.lastFour}`;
+                          return (
+                            <button
+                              className={choiceClass(slipCard === label)}
+                              key={card.id}
+                              onClick={() => setSlipCard(label)}
+                              type="button"
+                            >
+                              <span className="block font-medium">{card.name}</span>
+                              <span className="mt-0.5 block text-muted-foreground">**** {card.lastFour}</span>
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+                  ) : null}
+                  {slipNotes ? (
+                    <div className="grid gap-2">
+                      <Label htmlFor="slip-notes">Notes</Label>
+                      <Textarea
+                        className="min-h-32 leading-6"
+                        id="slip-notes"
+                        onChange={(event) => setSlipNotes(event.target.value)}
+                        rows={6}
+                        value={slipNotes}
+                      />
+                    </div>
+                  ) : null}
                   {slipNote ? (
                     <p className={cn("text-sm", ocrStatus === "failed" ? "text-destructive" : "text-muted-foreground")}>
                       {slipNote}
@@ -703,6 +682,12 @@ export default function Home() {
         )}
 
         {step === 1 && (
+          <>
+          {gpsNotice ? (
+            <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">
+              {gpsNotice}
+            </p>
+          ) : null}
           <CaptureScreen
             captureKind="item"
             error={itemPhoto ? "" : itemNote || itemPhotoError}
@@ -712,14 +697,15 @@ export default function Home() {
             onRedo={redoPhoto}
             photo={itemPhoto}
           />
+          </>
         )}
 
-        {step === 3 && (
+        {step === 2 && (
           <section className="grid gap-4">
             <div>
               <h2 className="text-lg font-semibold tracking-tight">Job card</h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                Attach this purchase to a job, or skip and add it on the invoice later.
+                Attach this purchase to a job, or leave it unattached.
               </p>
             </div>
 
@@ -822,7 +808,7 @@ export default function Home() {
           </section>
         )}
 
-        {step === 4 && (
+        {step === 3 && (
           <section className="grid gap-4">
             <div>
               <h2 className="text-lg font-semibold tracking-tight">Check it</h2>
@@ -1023,16 +1009,18 @@ function CaptureScreen({
         // eslint-disable-next-line @next/next/no-img-element
         <img alt={`${captureKind} preview`} className="h-72 w-full rounded-xl border object-cover" src={photo.previewUrl} />
       ) : cameraOn ? null : (
-        <div
+        <button
           className={cn(
-            "flex min-h-72 flex-col items-center justify-center gap-2 rounded-xl border border-dashed bg-muted/40 px-6 text-center text-sm",
+            "flex min-h-72 w-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed bg-muted/40 px-6 text-center text-sm",
             error && "border-destructive ring-[3px] ring-destructive/30",
           )}
+          onClick={() => void openCamera()}
+          type="button"
         >
           <Camera className="size-5 text-muted-foreground" />
-          <strong>Take a small photo</strong>
+          <strong>Open camera</strong>
           <span className="text-muted-foreground">The camera is capped so the file stays small.</span>
-        </div>
+        </button>
       )}
 
       <FieldError message={photo ? "" : error || ""} />
@@ -1043,16 +1031,16 @@ function CaptureScreen({
 
       {photo ? <p className="text-sm text-muted-foreground">{photo.fileName}</p> : null}
 
-      <div className="grid grid-cols-2 gap-2">
+      <div className={cn("grid gap-2", cameraOn || photo ? "grid-cols-2" : "grid-cols-1")}>
         {cameraOn ? (
           <Button className="w-full" onClick={takePhoto} type="button">
             Take photo
           </Button>
-        ) : (
+        ) : photo ? (
           <Button className="w-full" onClick={() => void openCamera()} type="button">
-            {photo ? "Retake with camera" : "Open camera"}
+            Retake with camera
           </Button>
-        )}
+        ) : null}
         <Button asChild className="w-full" type="button" variant="outline">
           <label>
             Choose photo

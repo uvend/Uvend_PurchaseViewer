@@ -3,7 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronLeft, FileText, House, LayoutDashboard, ShoppingBag, Wrench } from "lucide-react";
+import { ChevronLeft, House, LayoutDashboard, ShoppingBag, Wrench } from "lucide-react";
 import { AdminLogoutButton } from "@/app/admin/AdminLogoutButton";
 import { isOfficeRole } from "@/lib/roles";
 import { cn } from "@/lib/utils";
@@ -21,12 +21,6 @@ const fieldNav = [
     label: "Jobs",
     icon: Wrench,
     match: (path: string) => path.startsWith("/installations"),
-  },
-  {
-    href: "/invoices",
-    label: "Bills",
-    icon: FileText,
-    match: (path: string) => path.startsWith("/invoices"),
   },
 ];
 
@@ -120,7 +114,7 @@ export function FieldShell({
           <nav
             className={cn(
               "grid shrink-0 border-t border-border bg-card px-1 pt-1 pb-[max(0.35rem,env(safe-area-inset-bottom))]",
-              nav.length > 4 ? "grid-cols-5" : "grid-cols-4",
+              nav.length >= 5 ? "grid-cols-5" : nav.length === 3 ? "grid-cols-3" : "grid-cols-4",
             )}
           >
             {nav.map((item) => {
