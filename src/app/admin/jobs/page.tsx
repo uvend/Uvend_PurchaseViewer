@@ -15,7 +15,7 @@ import { defaultTimeSlot, formatSlot, isJobKind, jobKindLabel, jobKinds, kindLab
 import { initials } from "@/lib/format";
 
 type JobStatus = "TODO" | "ACTIVE" | "COMPLETE";
-type StaffRole = "USER" | "INSTALLER" | "ADMIN";
+type StaffRole = "ADMIN" | "OFFICE_USER" | "ROAD_USER";
 
 type StaffUser = {
   id: string;
@@ -121,8 +121,8 @@ export default function AdminJobsPage() {
   }
 
   const visible = useMemo(() => jobs.filter((job) => filter === "ALL" || job.status === filter), [filter, jobs]);
-  const assigners = staff.filter((person) => person.role === "ADMIN");
-  const assignees = staff.filter((person) => person.role !== "ADMIN");
+  const assigners = staff.filter((person) => person.role === "ADMIN" || person.role === "OFFICE_USER");
+  const assignees = staff.filter((person) => person.role === "ROAD_USER");
   const assigneeChoices = assignees.length > 0 ? assignees : staff;
   const selectedAssignee = staff.find((person) => person.id === form.assignedUserId);
 
@@ -245,7 +245,7 @@ export default function AdminJobsPage() {
               required
               value={form.assignedById}
             >
-              <option value="">Choose an admin</option>
+              <option value="">Choose an office person</option>
               {(assigners.length > 0 ? assigners : staff).map((person) => (
                 <option key={person.id} value={person.id}>
                   {personName(person) || person.username}
@@ -262,7 +262,7 @@ export default function AdminJobsPage() {
               required
               value={form.assignedUserId}
             >
-              <option value="">Choose a field user</option>
+              <option value="">Choose a road user</option>
               {assigneeChoices.map((person) => (
                 <option key={person.id} value={person.id}>
                   {personName(person) || person.username}

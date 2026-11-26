@@ -17,7 +17,7 @@ async function main() {
       where: { username },
       data: {
         passwordHash: hashPassword(password),
-        role: "USER",
+        role: "ROAD_USER",
       },
     });
     console.log("Updated existing field user password.");
@@ -27,7 +27,7 @@ async function main() {
         name: "Field user",
         username,
         passwordHash: hashPassword(password),
-        role: "USER",
+        role: "ROAD_USER",
       },
     });
     console.log("Created field user.");

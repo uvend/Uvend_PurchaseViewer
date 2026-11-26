@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { authCookieName, verifyJwt } from "@/lib/jwt";
+import { isOfficeRole } from "@/lib/roles";
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -36,11 +37,11 @@ export async function proxy(request: NextRequest) {
   if (isPurchaseLogin && user) {
     const next = request.nextUrl.searchParams.get("next") || "";
     const destination =
-      user.role === "ADMIN" ? (next.startsWith("/admin") ? next : "/admin") : fieldDestination(next);
+      isOfficeRole(user.role) ? (next.startsWith("/admin") ? next : "/admin") : fieldDestination(next);
     return NextResponse.redirect(new URL(destination, request.url));
   }
 
-  if (isAdminPath && user?.role !== "ADMIN") {
+  if (isAdminPath && !isOfficeRole(user?.role)) {
     if (!user) {
       const loginUrl = new URL("/login", request.url);
       loginUrl.searchParams.set("next", pathname);

@@ -41,7 +41,7 @@ export default function TrackingPage() {
       <Panel icon={<MapPin />} subtitle={`${located.length} with a fix · ${purchases.length - located.length} without GPS`} title="Purchase locations">
         <TomTomPurchaseMap
           framed={false}
-          heightClassName="h-[460px]"
+          heightClassName="h-[min(58dvh,520px)]"
           loading={loading}
           onSelectPurchase={setSelectedPurchaseId}
           purchases={visible}
@@ -58,7 +58,7 @@ export default function TrackingPage() {
           <label className="relative block">
             <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400" />
             <input
-              className="h-9 w-52 rounded-lg border bg-white pr-3 pl-9 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#2f6bff]/30"
+              className="h-9 w-full rounded-lg border bg-white pr-3 pl-9 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#2f6bff]/30 sm:w-56"
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Search locations..."
               value={search}

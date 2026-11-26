@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
+import { isOfficeRole } from "@/lib/roles";
 import { databaseErrorResponse, withDbRetry } from "@/lib/db";
 import { busyMessage, conflictingJob } from "@/lib/job-booking";
 import { readJobSchedule } from "@/lib/job-schedule";
@@ -102,8 +103,8 @@ export async function PATCH(
   };
   const changingSchedule = payload.kind !== undefined || payload.startsAt !== undefined || payload.assignedUserId !== undefined;
 
-  if (changingSchedule && user.role !== "ADMIN") {
-    return NextResponse.json({ error: "Admin access required" }, { status: 401 });
+  if (changingSchedule && !isOfficeRole(user.role)) {
+    return NextResponse.json({ error: "Office access required" }, { status: 401 });
   }
 
   const schedule = changingSchedule ? readJobSchedule(payload) : null;

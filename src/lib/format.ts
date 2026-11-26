@@ -63,15 +63,15 @@ export function initials(name: string) {
 
 export function roleLabel(role: string | null | undefined) {
   if (role === "ADMIN") {
-    return "Administrator";
+    return "Admin";
   }
 
-  if (role === "INSTALLER") {
-    return "Installer";
+  if (role === "OFFICE_USER") {
+    return "Office user";
   }
 
-  if (role === "USER") {
-    return "User";
+  if (role === "ROAD_USER") {
+    return "Road user";
   }
 
   return "Staff";

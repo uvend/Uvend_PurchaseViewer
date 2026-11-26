@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronLeft, FileText, House, LayoutDashboard, ShoppingBag, Wrench } from "lucide-react";
 import { AdminLogoutButton } from "@/app/admin/AdminLogoutButton";
+import { isOfficeRole } from "@/lib/roles";
 import { cn } from "@/lib/utils";
 
 const fieldNav = [
@@ -56,8 +57,8 @@ export function FieldShell({
 }) {
   const pathname = usePathname();
   const home = pathname === "/";
-  const [isAdmin, setIsAdmin] = useState(false);
-  const nav = isAdmin ? [...fieldNav, adminNav] : fieldNav;
+  const [isOffice, setIsOffice] = useState(false);
+  const nav = isOffice ? [...fieldNav, adminNav] : fieldNav;
 
   useEffect(() => {
     let cancelled = false;
@@ -72,7 +73,7 @@ export function FieldShell({
       const data = (await response.json()) as { user?: { role?: string } };
 
       if (!cancelled) {
-        setIsAdmin(data.user?.role === "ADMIN");
+        setIsOffice(isOfficeRole(data.user?.role));
       }
     }
 
@@ -84,9 +85,9 @@ export function FieldShell({
   }, []);
 
   return (
-    <div className="min-h-svh bg-[#e7edf6]">
-      <div className="mx-auto flex min-h-svh w-full max-w-lg flex-col bg-[#f4f7fb] sm:border-x sm:border-slate-200">
-        <header className="relative sticky top-0 z-20 overflow-hidden bg-[#0b1c3d] text-white">
+    <div className="h-dvh min-h-0 w-full bg-[#e7edf6]">
+      <div className="mx-auto flex h-full min-h-0 w-full max-w-3xl flex-col bg-[#f4f7fb] sm:border-x sm:border-slate-200">
+        <header className="relative z-20 shrink-0 overflow-hidden bg-[#0b1c3d] pt-[env(safe-area-inset-top)] text-white">
           <svg className="pointer-events-none absolute top-0 right-0 h-full w-36 opacity-50" viewBox="0 0 140 80" aria-hidden>
             <path d="M40 0 C 70 20, 90 10, 140 28 L 140 0 Z" fill="#16325c" />
             <path d="M70 80 C 100 50, 120 70, 140 48 L 140 80 Z" fill="#1d4f91" />
@@ -111,14 +112,14 @@ export function FieldShell({
           {headerExtra ? <div className="relative px-4 pb-3">{headerExtra}</div> : null}
         </header>
 
-        <main className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 py-5">{children}</main>
+        <main className="flex min-h-0 w-full flex-1 flex-col gap-4 overflow-y-auto px-4 py-5 sm:px-6">{children}</main>
 
         {footer ? <div className="border-t border-slate-200 bg-white p-3">{footer}</div> : null}
 
         {showNav ? (
           <nav
             className={cn(
-              "grid border-t border-slate-200 bg-white px-1 pt-1 pb-[max(0.35rem,env(safe-area-inset-bottom))]",
+              "grid shrink-0 border-t border-slate-200 bg-white px-1 pt-1 pb-[max(0.35rem,env(safe-area-inset-bottom))]",
               nav.length > 4 ? "grid-cols-5" : "grid-cols-4",
             )}
           >

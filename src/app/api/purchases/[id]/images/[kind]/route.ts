@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/auth";
+import { requireOffice } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 type RouteContext = {
@@ -10,10 +10,10 @@ type RouteContext = {
 };
 
 export async function GET(_request: Request, context: RouteContext) {
-  const admin = await requireAdmin();
+  const office = await requireOffice();
 
-  if (!admin) {
-    return NextResponse.json({ error: "Admin access required" }, { status: 401 });
+  if (!office) {
+    return NextResponse.json({ error: "Office access required" }, { status: 401 });
   }
 
   const { id, kind } = await context.params;

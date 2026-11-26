@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { authCookieName, verifyJwt, type JwtPayload } from "@/lib/jwt";
+import { isOfficeRole } from "@/lib/roles";
 
 export async function getCurrentUser() {
   const cookieStore = await cookies();
@@ -10,6 +11,12 @@ export async function getCurrentUser() {
 
 export async function requireUser() {
   return getCurrentUser();
+}
+
+export async function requireOffice() {
+  const user = await getCurrentUser();
+
+  return isOfficeRole(user?.role) ? user : null;
 }
 
 export async function requireAdmin() {

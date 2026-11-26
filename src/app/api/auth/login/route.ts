@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyPassword } from "@/lib/password";
 import { authCookieName, authCookieOptions, createJwt } from "@/lib/jwt";
+import { isOfficeRole } from "@/lib/roles";
 
 type LoginPayload = {
   username: string;
@@ -36,7 +37,7 @@ export async function POST(request: Request) {
   const passwordOk = Boolean(
     user?.username && verifyPassword(payload.password, user.passwordHash),
   );
-  const source = user?.role === "ADMIN" ? "admin" : "purchase";
+  const source = isOfficeRole(user?.role) ? "admin" : "purchase";
 
   if (!user || !passwordOk) {
     await prisma.loginEvent.create({

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdmin, requireUser } from "@/lib/auth";
+import { requireOffice, requireUser } from "@/lib/auth";
 import { databaseErrorResponse, withDbRetry } from "@/lib/db";
 import { busyMessage, conflictingJob } from "@/lib/job-booking";
 import { readJobSchedule } from "@/lib/job-schedule";
@@ -55,10 +55,10 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const admin = await requireAdmin();
+  const office = await requireOffice();
 
-  if (!admin) {
-    return NextResponse.json({ error: "Admin access required" }, { status: 401 });
+  if (!office) {
+    return NextResponse.json({ error: "Office access required" }, { status: 401 });
   }
 
   const payload = (await request.json()) as {

@@ -1,10 +1,12 @@
+import type { UserRole } from "@/lib/roles";
+
 export const authCookieName = "mra_admin_token";
 export const authCookieMaxAge = 60 * 60 * 8;
 
 export type JwtPayload = {
   userId: string;
   username: string;
-  role: "USER" | "ADMIN" | "INSTALLER";
+  role: UserRole;
   exp: number;
 };
 
@@ -106,7 +108,7 @@ export async function verifyJwt(token?: string | null): Promise<JwtPayload | nul
   try {
     const payload = JSON.parse(decodeBase64Url(body)) as JwtPayload;
 
-    if (!payload.userId || !payload.username || !["USER", "ADMIN", "INSTALLER"].includes(payload.role)) {
+    if (!payload.userId || !payload.username || !["ADMIN", "OFFICE_USER", "ROAD_USER"].includes(payload.role)) {
       return null;
     }
 

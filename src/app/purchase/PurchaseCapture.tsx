@@ -4,6 +4,7 @@ import { ChangeEvent, ReactNode, useEffect, useMemo, useRef, useState } from "re
 import { useRouter } from "next/navigation";
 import { Camera } from "lucide-react";
 import { FieldShell } from "@/components/field/field-shell";
+import { captureGps } from "@/lib/location";
 import { parseSlipText } from "@/lib/slip-fields";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,7 +32,7 @@ type ReusableLabel = {
 type SignedInUser = {
   userId: string;
   username: string;
-  role: "USER" | "ADMIN" | "INSTALLER";
+  role: "ADMIN" | "OFFICE_USER" | "ROAD_USER";
 };
 
 type OcrCapture = {
@@ -105,10 +106,11 @@ export default function Home() {
   const [itemLabel, setItemLabel] = useState("Item pic");
   const [description, setDescription] = useState("");
   const [pinnedLabels, setPinnedLabels] = useState<ReusableLabel[]>(starterLabels);
-  const [locationStatus, setLocationStatus] = useState("Location not captured yet");
-  const [location, setLocation] = useState("");
+  const [locationStatus, setLocationStatus] = useState("");
   const [manualLatitude, setManualLatitude] = useState("");
   const [manualLongitude, setManualLongitude] = useState("");
+  const [locating, setLocating] = useState(false);
+  const [gpsNotice, setGpsNotice] = useState("");
   const [submitMessage, setSubmitMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [jobs, setJobs] = useState<JobOption[]>([]);
@@ -179,8 +181,6 @@ export default function Home() {
     };
   }, []);
 
-  const latitudeError = coordinateError(manualLatitude, -90, 90, "Latitude");
-  const longitudeError = coordinateError(manualLongitude, -180, 180, "Longitude");
   const customShopError = shop === "Other shop" && !customShop.trim() ? "Enter the shop name." : "";
   const descriptionError = description.trim() ? "" : "Add a description.";
   const slipLabelError = slipLabel.trim() ? "" : "Add a slip label.";
@@ -199,7 +199,7 @@ export default function Home() {
     }
 
     if (step === 2) {
-      return !customShopError && !latitudeError && !longitudeError;
+      return !customShopError;
     }
 
     if (step === 3) {
@@ -212,8 +212,6 @@ export default function Home() {
     descriptionError,
     itemLabelError,
     itemPhotoError,
-    latitudeError,
-    longitudeError,
     ocrPending,
     slipLabelError,
     slipPhotoError,
@@ -239,11 +237,33 @@ export default function Home() {
     });
   }, [jobId, jobQuery, jobs]);
 
-  function nextStep() {
-    if (!canContinue) {
+  async function nextStep() {
+    if (!canContinue || locating) {
       return;
     }
 
+    if (step === 2) {
+      setLocating(true);
+      setGpsNotice("");
+      const fix = await captureGps();
+      setLocating(false);
+
+      if (typeof fix.latitude !== "number" || typeof fix.longitude !== "number") {
+        setGpsNotice("Please Try Again");
+        setLocationStatus("");
+        setManualLatitude("");
+        setManualLongitude("");
+        return;
+      }
+
+      setManualLatitude(fix.latitude.toFixed(5));
+      setManualLongitude(fix.longitude.toFixed(5));
+      setLocationStatus("GPS captured");
+      setStep((currentStep) => Math.min(currentStep + 1, stepLabels.length - 1));
+      return;
+    }
+
+    setGpsNotice("");
     setStep((currentStep) => Math.min(currentStep + 1, stepLabels.length - 1));
   }
 
@@ -315,28 +335,6 @@ export default function Home() {
     setItemPhoto(null);
   }
 
-  function captureLocation() {
-    if (!navigator.geolocation) {
-      setLocationStatus("Geolocation is not available on this device");
-      return;
-    }
-
-    setLocationStatus("Capturing current location...");
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const capturedLocation = `${position.coords.latitude.toFixed(5)}, ${position.coords.longitude.toFixed(5)}`;
-        setLocation(capturedLocation);
-        setManualLatitude(position.coords.latitude.toFixed(5));
-        setManualLongitude(position.coords.longitude.toFixed(5));
-        setLocationStatus("Location captured");
-      },
-      () => {
-        setLocationStatus("Location permission denied or unavailable");
-      },
-      { enableHighAccuracy: true, timeout: 10000 },
-    );
-  }
-
   function pinCurrentLabel() {
     const reusableLabel = {
       shop: selectedShop,
@@ -376,10 +374,11 @@ export default function Home() {
     setOcrStatus("idle");
     filledByOcr.current = false;
     ocrRequest.current += 1;
-    setLocation("");
     setManualLatitude("");
     setManualLongitude("");
-    setLocationStatus("Location not captured yet");
+    setLocationStatus("");
+    setGpsNotice("");
+    setLocating(false);
     setSubmitMessage(message ?? "");
     setJobId("");
   }
@@ -480,16 +479,8 @@ export default function Home() {
   }
 
   function getCoordinates() {
-    const manualLat = Number(manualLatitude.trim());
-    const manualLng = Number(manualLongitude.trim());
-
-    if (Number.isFinite(manualLat) && Number.isFinite(manualLng)) {
-      return { latitude: manualLat, longitude: manualLng };
-    }
-
-    const [latitude, longitude] = location
-      .split(",")
-      .map((coordinate) => Number(coordinate.trim()));
+    const latitude = Number(manualLatitude.trim());
+    const longitude = Number(manualLongitude.trim());
 
     if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
       return { latitude, longitude };
@@ -504,11 +495,18 @@ export default function Home() {
       return;
     }
 
+    const coordinates = getCoordinates();
+
+    if (coordinates.latitude == null || coordinates.longitude == null) {
+      setGpsNotice("Please Try Again");
+      setStep(2);
+      return;
+    }
+
     setIsSubmitting(true);
     setSubmitMessage("Saving purchase...");
 
     try {
-      const coordinates = getCoordinates();
       const response = await fetch("/api/purchases", {
         method: "POST",
         headers: {
@@ -600,8 +598,8 @@ export default function Home() {
             Back
           </Button>
           {step < stepLabels.length - 1 ? (
-            <Button disabled={!canContinue} onClick={nextStep} type="button">
-              {ocrPending && step === 0 ? "Reading slip..." : "Continue"}
+            <Button disabled={!canContinue || locating} onClick={() => void nextStep()} type="button">
+              {locating ? "Finding location..." : ocrPending && step === 0 ? "Reading slip..." : "Continue"}
             </Button>
           ) : (
             <Button disabled={isSubmitting} onClick={submitAndReset} type="button">
@@ -618,9 +616,14 @@ export default function Home() {
             <div>
               <h2 className="text-lg font-semibold tracking-tight">Which shop?</h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                Shop is optional. Latitude and longitude are required.
+                Shop is optional. Continue takes your location in the background.
               </p>
             </div>
+            {gpsNotice ? (
+              <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">
+                {gpsNotice}
+              </p>
+            ) : null}
 
             <Button onClick={() => setShop("")} type="button" variant={shop === "" ? "default" : "outline"}>
               Skip shop
@@ -655,52 +658,7 @@ export default function Home() {
               </div>
             )}
 
-            <Button onClick={captureLocation} type="button" variant="secondary">
-              Use current GPS
-            </Button>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="grid gap-2">
-                <Label htmlFor="latitude">Latitude</Label>
-                <Input
-                  aria-invalid={latitudeError ? true : undefined}
-                  id="latitude"
-                  inputMode="decimal"
-                  onChange={(event) => setManualLatitude(event.target.value)}
-                  placeholder="-33.9249"
-                  value={manualLatitude}
-                />
-                <FieldError message={latitudeError} />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="longitude">Longitude</Label>
-                <Input
-                  aria-invalid={longitudeError ? true : undefined}
-                  id="longitude"
-                  inputMode="decimal"
-                  onChange={(event) => setManualLongitude(event.target.value)}
-                  placeholder="18.4241"
-                  value={manualLongitude}
-                />
-                <FieldError message={longitudeError} />
-              </div>
-            </div>
-            <p
-              className={cn(
-                "text-sm",
-                locationStatus === "Location permission denied or unavailable" ||
-                  locationStatus === "Geolocation is not available on this device"
-                  ? "text-destructive"
-                  : "text-muted-foreground",
-              )}
-            >
-              {locationStatus}
-              {manualLatitude && manualLongitude
-                ? `: ${manualLatitude}, ${manualLongitude}`
-                : location
-                  ? `: ${location}`
-                  : ""}
-            </p>
-          </section>
+            </section>
         )}
 
         {step === 0 && (
@@ -891,11 +849,7 @@ export default function Home() {
               />
               <Row
                 label="Location"
-                value={
-                  manualLatitude && manualLongitude
-                    ? `${manualLatitude}, ${manualLongitude}`
-                    : location || "Not added"
-                }
+                value={manualLatitude && manualLongitude ? `${manualLatitude}, ${manualLongitude}` : "Not added"}
               />
             </div>
           </section>
@@ -1170,22 +1124,6 @@ function FieldError({ message }: { message: string }) {
   }
 
   return <p className="text-sm text-destructive">{message}</p>;
-}
-
-function coordinateError(value: string, minimum: number, maximum: number, label: string) {
-  const trimmed = value.trim();
-
-  if (!trimmed) {
-    return `${label} is required.`;
-  }
-
-  const number = Number(trimmed);
-
-  if (!Number.isFinite(number) || number < minimum || number > maximum) {
-    return `Enter a valid ${label.toLowerCase()}.`;
-  }
-
-  return "";
 }
 
 function Row({ label, value }: { label: string; value: string }) {

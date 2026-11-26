@@ -21,7 +21,7 @@ export type OfficePurchase = {
     id: string;
     name: string | null;
     username: string;
-    role: "USER" | "ADMIN" | "INSTALLER";
+    role: "ADMIN" | "OFFICE_USER" | "ROAD_USER";
   } | null;
   downloads: {
     slip: string;

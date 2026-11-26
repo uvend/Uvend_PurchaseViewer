@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 type LoginEvent = {
   id: string;
   username: string;
-  role: "USER" | "ADMIN" | "INSTALLER" | null;
+  role: "ADMIN" | "OFFICE_USER" | "ROAD_USER" | null;
   success: boolean;
   source: string;
   createdAt: string;
@@ -86,7 +86,7 @@ export default function LogsPage() {
           <label className="relative block">
             <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400" />
             <input
-              className="h-9 w-52 rounded-lg border bg-white pr-3 pl-9 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#2f6bff]/30"
+              className="h-9 w-full rounded-lg border bg-white pr-3 pl-9 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#2f6bff]/30 sm:w-56"
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Search logs..."
               value={search}

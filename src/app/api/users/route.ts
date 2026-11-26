@@ -2,13 +2,14 @@ import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hashPassword } from "@/lib/password";
+import { isUserRole } from "@/lib/roles";
 
 type UserPayload = {
   name: string;
   username: string;
   email?: string;
   password: string;
-  role: "USER" | "ADMIN";
+  role: string;
 };
 
 export async function GET() {
@@ -45,11 +46,15 @@ export async function POST(request: Request) {
 
     const payload = (await request.json()) as UserPayload;
 
-    if (!payload.name || !payload.username || !payload.password || !payload.role) {
+    if (!payload.name || !payload.username || !payload.password || !isUserRole(payload.role)) {
       return NextResponse.json(
         { error: "Name, username, password, and role are required" },
         { status: 400 },
       );
+    }
+
+    if (payload.password.length < 6) {
+      return NextResponse.json({ error: "Password must be at least 6 characters" }, { status: 400 });
     }
 
     const user = await prisma.user.create({

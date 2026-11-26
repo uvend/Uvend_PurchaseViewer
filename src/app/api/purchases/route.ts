@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
+import { isOfficeRole } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
 
 type ImagePayload = {
@@ -115,6 +116,10 @@ export async function POST(request: Request) {
       );
     }
 
+    if (!Number.isFinite(payload.latitude) || !Number.isFinite(payload.longitude)) {
+      return NextResponse.json({ error: "A GPS location is required" }, { status: 400 });
+    }
+
     if (payload.jobId) {
       const job = await prisma.job.findUnique({
         where: { id: payload.jobId },
@@ -206,7 +211,7 @@ export async function GET() {
   }
 
   const purchases = await prisma.purchase.findMany({
-    where: user.role === "ADMIN" ? undefined : { userId: user.userId },
+    where: isOfficeRole(user.role) ? undefined : { userId: user.userId },
     orderBy: {
       purchasedAt: "desc",
     },

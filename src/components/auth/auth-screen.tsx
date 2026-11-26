@@ -94,7 +94,7 @@ function AuthForm() {
 }
 
 function destinationForRole(role: string | undefined, next: string | null) {
-  if (role === "ADMIN") {
+  if (role === "ADMIN" || role === "OFFICE_USER") {
     return next?.startsWith("/admin") ? next : "/admin";
   }
 
