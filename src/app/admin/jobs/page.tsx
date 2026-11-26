@@ -11,7 +11,8 @@ import { controlClass, Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Notice } from "@/components/ui/notice";
 import { panelClass } from "@/components/admin/panel";
-import { defaultTimeSlot, formatSlot, isJobKind, jobKindLabel, jobKinds, kindLabel, personName, type JobKind } from "@/lib/job-schedule";
+import { formatDateTime } from "@/lib/format";
+import { defaultTimeSlot, formatSlot, isJobKind, jobKindLabel, jobKinds, kindLabel, localDateTimeInput, personName, type JobKind } from "@/lib/job-schedule";
 import { initials } from "@/lib/format";
 
 type JobStatus = "TODO" | "ACTIVE" | "COMPLETE";
@@ -35,6 +36,8 @@ type JobRow = {
   meterNumber: string | null;
   startsAt: string | null;
   endsAt: string | null;
+  bufferMinutes: number;
+  completedAt: string | null;
   assignedBy: StaffUser | null;
   assignedUser: StaffUser | null;
   notes: { id: string }[];
@@ -52,6 +55,7 @@ type JobForm = {
   assignedUserId: string;
   startsAt: string;
   endsAt: string;
+  bufferMinutes: string;
 };
 
 const statusLabel: Record<JobStatus, string> = {
@@ -71,6 +75,7 @@ const emptyForm: JobForm = {
   assignedUserId: "",
   startsAt: "",
   endsAt: "",
+  bufferMinutes: "0",
 };
 
 export default function AdminJobsPage() {
@@ -80,6 +85,13 @@ export default function AdminJobsPage() {
   const [form, setForm] = useState<JobForm>(emptyForm);
   const [message, setMessage] = useState("");
   const [creating, setCreating] = useState(false);
+  const [slot, setSlot] = useState<{
+    startsAt: string;
+    endsAt: string;
+    jobId: string;
+    assignedUserId: string;
+    bufferMinutes: string;
+  } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -145,8 +157,63 @@ export default function AdminJobsPage() {
       ...defaultTimeSlot(),
       assignedById: current.assignedById,
     }));
-    setMessage("Job card created. That person is unavailable for the time slot.");
+    setMessage("Job card created. The travel buffer after it is held on the calendar.");
     setCreating(false);
+    await loadJobs();
+  }
+
+  function pickSlot(startsAt: Date) {
+    const end = new Date(startsAt);
+    end.setHours(end.getHours() + 2);
+    const openJob = jobs.find((job) => job.status !== "COMPLETE");
+    setSlot({
+      startsAt: localDateTimeInput(startsAt),
+      endsAt: localDateTimeInput(end),
+      jobId: openJob?.id ?? "",
+      assignedUserId: openJob?.assignedUser?.id || form.assignedUserId,
+      bufferMinutes: String(openJob?.bufferMinutes ?? form.bufferMinutes ?? 0),
+    });
+    setForm((current) => ({
+      ...current,
+      startsAt: localDateTimeInput(startsAt),
+      endsAt: localDateTimeInput(end),
+    }));
+  }
+
+  async function assignSlot(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const job = jobs.find((item) => item.id === slot?.jobId);
+
+    if (!slot || !job) {
+      setMessage("Choose a job card for this time.");
+      return;
+    }
+
+    const response = await fetch(`/api/jobs/${job.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        kind: job.kind,
+        meterNumber: job.meterNumber,
+        assignedById: job.assignedBy?.id || form.assignedById,
+        assignedUserId: slot.assignedUserId,
+        startsAt: slot.startsAt,
+        endsAt: slot.endsAt,
+        bufferMinutes: Number(slot.bufferMinutes || 0),
+        title: job.title,
+        customerName: job.customerName,
+        address: job.address,
+      }),
+    });
+    const data = (await response.json()) as { error?: string };
+
+    if (!response.ok) {
+      setMessage(data.error || "Could not place that job.");
+      return;
+    }
+
+    setMessage("Job placed on the calendar, with the travel buffer held after it.");
+    setSlot(null);
     await loadJobs();
   }
 
@@ -270,9 +337,9 @@ export default function AdminJobsPage() {
               ))}
             </select>
           </div>
-          <div className="grid gap-2 sm:grid-cols-2">
+          <div className="grid gap-2 sm:grid-cols-3 lg:col-span-2">
             <div className="grid gap-2">
-              <Label htmlFor="starts-at">Time slot starts</Label>
+              <Label htmlFor="starts-at">Expected start</Label>
               <Input
                 id="starts-at"
                 onChange={(event) => setForm({ ...form, startsAt: event.target.value })}
@@ -282,13 +349,23 @@ export default function AdminJobsPage() {
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="ends-at">Time slot ends</Label>
+              <Label htmlFor="ends-at">Expected end</Label>
               <Input
                 id="ends-at"
                 onChange={(event) => setForm({ ...form, endsAt: event.target.value })}
                 required
                 type="datetime-local"
                 value={form.endsAt}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="buffer">Travel buffer (minutes)</Label>
+              <Input
+                id="buffer"
+                min={0}
+                onChange={(event) => setForm({ ...form, bufferMinutes: event.target.value })}
+                type="number"
+                value={form.bufferMinutes}
               />
             </div>
           </div>
@@ -300,7 +377,7 @@ export default function AdminJobsPage() {
       <section className={panelClass}>
         <div className="px-5 pt-4">
           <h2 className="text-sm font-semibold">{visible.length} jobs</h2>
-          <p className="text-xs text-slate-500">Open a card for notes, the invoice, and the PDF</p>
+          <p className="text-xs text-slate-500">Expected end is the booked finish. Finished is when the field user pressed Done.</p>
         </div>
         <div className="overflow-x-auto px-2 pt-2 pb-3">
           <table className="w-full min-w-[860px] text-left text-sm">
@@ -339,7 +416,15 @@ export default function AdminJobsPage() {
                       </span>
                     </td>
                     <td className="px-3 py-3 text-slate-600">
-                      {job.startsAt && job.endsAt ? formatSlot(job.startsAt, job.endsAt) : "—"}
+                      {job.startsAt && job.endsAt ? (
+                        <span className="block">
+                          Expected {formatSlot(job.startsAt, job.endsAt)}
+                          {job.bufferMinutes ? ` · ${job.bufferMinutes} min travel` : ""}
+                        </span>
+                      ) : (
+                        "—"
+                      )}
+                      {job.completedAt ? <span className="block text-xs">Finished {formatDateTime(job.completedAt)}</span> : null}
                     </td>
                     <td className="px-3 py-3">
                       <JobStatusBadge status={job.status} />
@@ -353,6 +438,84 @@ export default function AdminJobsPage() {
         </div>
       </section>
 
+      {slot ? (
+        <form className={`${panelClass} grid gap-3 p-5 md:grid-cols-2`} onSubmit={assignSlot}>
+          <div className="md:col-span-2">
+            <h2 className="text-sm font-semibold">Place a job on this time</h2>
+            <p className="text-xs text-slate-500">Expected end is the booked finish. Travel buffer is held after it so the next job is not on top of the drive.</p>
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="slot-job">Job card</Label>
+            <select
+              className={controlClass}
+              id="slot-job"
+              onChange={(event) => {
+                const job = jobs.find((item) => item.id === event.target.value);
+                setSlot({
+                  ...slot,
+                  jobId: event.target.value,
+                  assignedUserId: job?.assignedUser?.id || slot.assignedUserId,
+                  bufferMinutes: String(job?.bufferMinutes ?? slot.bufferMinutes),
+                });
+              }}
+              required
+              value={slot.jobId}
+            >
+              <option value="">Choose a job card</option>
+              {jobs
+                .filter((job) => job.status !== "COMPLETE")
+                .map((job) => (
+                  <option key={job.id} value={job.id}>
+                    {job.title}
+                    {job.customerName ? ` · ${job.customerName}` : ""}
+                  </option>
+                ))}
+            </select>
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="slot-person">Assigned to</Label>
+            <select
+              className={controlClass}
+              id="slot-person"
+              onChange={(event) => setSlot({ ...slot, assignedUserId: event.target.value })}
+              required
+              value={slot.assignedUserId}
+            >
+              <option value="">Choose a road user</option>
+              {assigneeChoices.map((person) => (
+                <option key={person.id} value={person.id}>
+                  {personName(person) || person.username}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="slot-start">Expected start</Label>
+            <Input id="slot-start" onChange={(event) => setSlot({ ...slot, startsAt: event.target.value })} required type="datetime-local" value={slot.startsAt} />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="slot-end">Expected end</Label>
+            <Input id="slot-end" onChange={(event) => setSlot({ ...slot, endsAt: event.target.value })} required type="datetime-local" value={slot.endsAt} />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="slot-buffer">Travel buffer (minutes)</Label>
+            <Input
+              id="slot-buffer"
+              min={0}
+              onChange={(event) => setSlot({ ...slot, bufferMinutes: event.target.value })}
+              type="number"
+              value={slot.bufferMinutes}
+            />
+          </div>
+          <div className="flex items-end gap-2">
+            <Button type="submit">Place on calendar</Button>
+            <Button onClick={() => setSlot(null)} type="button" variant="outline">
+              Cancel
+            </Button>
+          </div>
+        </form>
+      ) : null}
+
       <JobWeek
         draft={
           form.startsAt && form.endsAt
@@ -362,10 +525,12 @@ export default function AdminJobsPage() {
                 startsAt: new Date(form.startsAt).toISOString(),
                 endsAt: new Date(form.endsAt).toISOString(),
                 assigneeName: personName(selectedAssignee),
+                bufferMinutes: Number(form.bufferMinutes) || 0,
               }
             : null
         }
         jobs={jobs}
+        onPickSlot={pickSlot}
       />
     </AdminFrame>
   );

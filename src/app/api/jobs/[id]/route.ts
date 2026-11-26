@@ -70,6 +70,10 @@ export async function GET(
       return NextResponse.json({ error: "Job not found" }, { status: 404 });
     }
 
+    if (!isOfficeRole(user.role) && job.assignedUserId !== user.userId) {
+      return NextResponse.json({ error: "This job is not assigned to you" }, { status: 403 });
+    }
+
     return NextResponse.json({ job });
   } catch (error) {
     const { error: message, status } = databaseErrorResponse(error, "Could not load job");
@@ -100,11 +104,27 @@ export async function PATCH(
     assignedUserId?: string;
     startsAt?: string;
     endsAt?: string;
+    bufferMinutes?: number | string;
   };
-  const changingSchedule = payload.kind !== undefined || payload.startsAt !== undefined || payload.assignedUserId !== undefined;
+  const changingSchedule =
+    payload.kind !== undefined ||
+    payload.startsAt !== undefined ||
+    payload.assignedUserId !== undefined ||
+    payload.bufferMinutes !== undefined;
 
-  if (changingSchedule && !isOfficeRole(user.role)) {
-    return NextResponse.json({ error: "Office access required" }, { status: 401 });
+  if (!isOfficeRole(user.role)) {
+    const existing = await prisma.job.findUnique({
+      where: { id },
+      select: { assignedUserId: true },
+    });
+
+    if (existing?.assignedUserId !== user.userId) {
+      return NextResponse.json({ error: "This job is not assigned to you" }, { status: 403 });
+    }
+
+    if (changingSchedule || (payload.status && payload.status !== "COMPLETE")) {
+      return NextResponse.json({ error: "Office access required" }, { status: 401 });
+    }
   }
 
   const schedule = changingSchedule ? readJobSchedule(payload) : null;
@@ -115,7 +135,13 @@ export async function PATCH(
 
   try {
     if (schedule && !("error" in schedule) && payload.status !== "COMPLETE") {
-      const clash = await conflictingJob(schedule.assignedUserId, schedule.startsAt, schedule.endsAt, id);
+      const clash = await conflictingJob(
+        schedule.assignedUserId,
+        schedule.startsAt,
+        schedule.endsAt,
+        schedule.bufferMinutes,
+        id,
+      );
 
       if (clash) {
         return NextResponse.json({ error: busyMessage(clash) }, { status: 409 });
@@ -127,6 +153,8 @@ export async function PATCH(
         where: { id },
         data: {
           status: payload.status,
+          ...(payload.status === "COMPLETE" ? { completedAt: new Date() } : {}),
+          ...(payload.status && payload.status !== "COMPLETE" ? { completedAt: null } : {}),
           ...(schedule && !("error" in schedule)
             ? {
                 ...(payload.title !== undefined ? { title: payload.title.trim() } : {}),
@@ -139,6 +167,7 @@ export async function PATCH(
                 assignedUserId: schedule.assignedUserId,
                 startsAt: schedule.startsAt,
                 endsAt: schedule.endsAt,
+                bufferMinutes: schedule.bufferMinutes,
               }
             : {}),
         },

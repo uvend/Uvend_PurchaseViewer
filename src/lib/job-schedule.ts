@@ -48,6 +48,7 @@ export function readJobSchedule(input: {
   assignedById?: string;
   startsAt?: string;
   endsAt?: string;
+  bufferMinutes?: number | string;
 }) {
   if (!input.kind || !isJobKind(input.kind)) {
     return { error: "Choose a job type." as const };
@@ -74,6 +75,12 @@ export function readJobSchedule(input: {
     return { error: "Choose a time slot that ends after it starts." as const };
   }
 
+  const bufferMinutes = Math.round(Number(input.bufferMinutes ?? 0));
+
+  if (!Number.isFinite(bufferMinutes) || bufferMinutes < 0 || bufferMinutes > 24 * 60) {
+    return { error: "Travel buffer must be between 0 and 1440 minutes." as const };
+  }
+
   return {
     kind: input.kind,
     meterNumber,
@@ -81,6 +88,7 @@ export function readJobSchedule(input: {
     assignedUserId: input.assignedUserId,
     startsAt,
     endsAt,
+    bufferMinutes,
   };
 }
 

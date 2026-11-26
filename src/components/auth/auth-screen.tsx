@@ -94,8 +94,12 @@ function AuthForm() {
 }
 
 function destinationForRole(role: string | undefined, next: string | null) {
-  if (role === "ADMIN" || role === "OFFICE_USER") {
+  if (role === "ADMIN") {
     return next?.startsWith("/admin") ? next : "/admin";
+  }
+
+  if (role === "OFFICE_USER") {
+    return next === "/admin" || next?.startsWith("/admin/tracking") || next?.startsWith("/admin/jobs") ? next : "/admin";
   }
 
   if (

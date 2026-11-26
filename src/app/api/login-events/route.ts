@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import { requireOffice } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 export async function GET() {
-  const office = await requireOffice();
+  const admin = await requireAdmin();
 
-  if (!office) {
-    return NextResponse.json({ error: "Office access required" }, { status: 401 });
+  if (!admin) {
+    return NextResponse.json({ error: "Admin access required" }, { status: 401 });
   }
 
   const events = await prisma.loginEvent.findMany({

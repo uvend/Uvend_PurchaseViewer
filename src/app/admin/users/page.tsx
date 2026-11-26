@@ -38,7 +38,7 @@ const emptyForm: UserForm = {
 
 const groups: { role: UserRole; title: string; detail: string }[] = [
   { role: "ADMIN", title: "Admin", detail: "Office access, including people" },
-  { role: "OFFICE_USER", title: "Office user", detail: "Office dashboard, jobs, and reports" },
+  { role: "OFFICE_USER", title: "Office user", detail: "Dash, tracking, jobs, and the field app" },
   { role: "ROAD_USER", title: "Road user", detail: "Field app only" },
 ];
 

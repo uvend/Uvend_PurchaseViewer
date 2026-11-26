@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { kindLabel, personName, type JobKind } from "@/lib/job-schedule";
+import { personName, type JobKind } from "@/lib/job-schedule";
 import { cn } from "@/lib/utils";
 
 type CalendarPerson = { id: string; name: string | null; username: string | null };
@@ -15,6 +15,8 @@ export type CalendarJob = {
   kind: JobKind | null;
   startsAt: string | null;
   endsAt: string | null;
+  bufferMinutes?: number;
+  completedAt?: string | null;
   assignedUser: CalendarPerson | null;
 };
 
@@ -24,6 +26,7 @@ type DraftSlot = {
   startsAt: string;
   endsAt: string;
   assigneeName: string;
+  bufferMinutes?: number;
 };
 
 const startHour = 7;
@@ -31,7 +34,15 @@ const endHour = 18;
 const hourHeight = 42;
 const swatches = ["bg-blue-950 text-white", "bg-sky-800 text-white", "bg-emerald-800 text-white", "bg-amber-700 text-white", "bg-violet-800 text-white"];
 
-export function JobWeek({ jobs, draft }: { jobs: CalendarJob[]; draft?: DraftSlot | null }) {
+export function JobWeek({
+  jobs,
+  draft,
+  onPickSlot,
+}: {
+  jobs: CalendarJob[];
+  draft?: DraftSlot | null;
+  onPickSlot?: (startsAt: Date) => void;
+}) {
   const [weekStart, setWeekStart] = useState<Date | null>(null);
   const days = useMemo(() => (weekStart ? Array.from({ length: 7 }, (_, index) => addDays(weekStart, index)) : []), [weekStart]);
 
@@ -52,12 +63,12 @@ export function JobWeek({ jobs, draft }: { jobs: CalendarJob[]; draft?: DraftSlo
   }, [draft, jobs]);
 
   return (
-    <section className="grid gap-4 rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+    <section className="grid gap-4 rounded-2xl border border-border bg-card p-5 text-card-foreground shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-base font-semibold tracking-tight">Time calendar</h2>
           <p className="text-sm text-muted-foreground">
-            A filled block means that person is unavailable. Completing the job on the field app frees them.
+            Click an open hour to place a job. The hatched block after a job is the travel buffer.
           </p>
         </div>
         <div className="flex gap-2">
@@ -92,8 +103,12 @@ export function JobWeek({ jobs, draft }: { jobs: CalendarJob[]; draft?: DraftSlo
             </span>
           ))}
           <span className="inline-flex items-center gap-2 text-muted-foreground">
-            <span className="size-2.5 rounded-full border border-dashed" />
-            Completed, available again
+            <span className="size-2.5 rounded-sm border border-dashed border-amber-700 bg-amber-100" />
+            Travel buffer
+          </span>
+          <span className="inline-flex items-center gap-2 text-muted-foreground">
+            <span className="h-0.5 w-2.5 bg-emerald-600" />
+            Finished
           </span>
         </div>
       ) : (
@@ -121,7 +136,7 @@ export function JobWeek({ jobs, draft }: { jobs: CalendarJob[]; draft?: DraftSlo
             ))}
           </div>
           {days.map((day) => (
-            <DayColumn day={day} draft={draft} jobs={jobs} key={day.toISOString()} />
+            <DayColumn day={day} draft={draft} jobs={jobs} key={day.toISOString()} onPickSlot={onPickSlot} />
           ))}
         </div>
       </div> : <p className="text-sm text-muted-foreground">Loading the week...</p>}
@@ -129,57 +144,137 @@ export function JobWeek({ jobs, draft }: { jobs: CalendarJob[]; draft?: DraftSlo
   );
 }
 
-function DayColumn({ day, jobs, draft }: { day: Date; jobs: CalendarJob[]; draft?: DraftSlot | null }) {
+function DayColumn({
+  day,
+  jobs,
+  draft,
+  onPickSlot,
+}: {
+  day: Date;
+  jobs: CalendarJob[];
+  draft?: DraftSlot | null;
+  onPickSlot?: (startsAt: Date) => void;
+}) {
   const blocks = laneBlocks(
     jobs.flatMap((job) => {
       const placed = placeOnDay(day, job.startsAt, job.endsAt);
       if (!placed || !job.assignedUser) {
         return [];
       }
-      return [{ ...placed, job, name: personName(job.assignedUser), userId: job.assignedUser.id }];
+
+      const items: Array<
+        { top: number; height: number; kind: "job" | "buffer"; job: CalendarJob; name: string; userId: string }
+      > = [{ ...placed, kind: "job", job, name: personName(job.assignedUser), userId: job.assignedUser.id }];
+      const bufferEnd = job.endsAt ? new Date(new Date(job.endsAt).getTime() + (job.bufferMinutes ?? 0) * 60_000).toISOString() : null;
+      const buffer = job.bufferMinutes ? placeOnDay(day, job.endsAt, bufferEnd) : null;
+
+      if (buffer) {
+        items.push({ ...buffer, kind: "buffer", job, name: personName(job.assignedUser), userId: job.assignedUser.id });
+      }
+
+      return items;
     }),
   );
   const draftBlock = draft ? placeOnDay(day, draft.startsAt, draft.endsAt) : null;
+  const draftBuffer =
+    draft?.bufferMinutes && draft.endsAt
+      ? placeOnDay(day, draft.endsAt, new Date(new Date(draft.endsAt).getTime() + draft.bufferMinutes * 60_000).toISOString())
+      : null;
 
   return (
     <div className="relative border-l bg-background" style={{ height: (endHour - startHour) * hourHeight }}>
       {Array.from({ length: endHour - startHour }, (_, index) => (
-        <div className="border-t border-dashed border-border/70" key={index} style={{ height: hourHeight }} />
+        <button
+          className="absolute inset-x-0 border-t border-dashed border-border/70 hover:bg-blue-50"
+          key={index}
+          onClick={() => onPickSlot?.(atHour(day, startHour + index))}
+          style={{ top: index * hourHeight, height: hourHeight }}
+          type="button"
+          aria-label={`Assign a job at ${String(startHour + index).padStart(2, "0")}:00`}
+        />
       ))}
-      {blocks.map((block) => (
-        <Link
-          className={cn(
-            "absolute overflow-hidden rounded-md px-1.5 py-1 text-[10px] leading-tight",
-            block.job.status === "COMPLETE" ? "border border-dashed bg-muted text-muted-foreground" : swatches[colorIndex(block.userId)],
-          )}
-          href={`/admin/jobs/${block.job.id}`}
-          key={block.job.id}
-          style={{
-            top: block.top,
-            height: block.height,
-            left: `calc(${(100 / block.lanes) * block.lane}% + 2px)`,
-            width: `calc(${100 / block.lanes}% - 4px)`,
-          }}
-        >
-          <span className="block font-medium">
-            {block.job.status === "COMPLETE" ? "Available" : "Unavailable"} · {block.name}
-          </span>
-          <span className="block truncate">
-            {clock(block.job.startsAt)}–{clock(block.job.endsAt)} {kindLabel(block.job.kind)}
-          </span>
-        </Link>
-      ))}
+      {blocks.map((block) => {
+        const style = {
+          top: block.top,
+          height: block.height,
+          left: `calc(${(100 / block.lanes) * block.lane}% + 2px)`,
+          width: `calc(${100 / block.lanes}% - 4px)`,
+        };
+
+        if (block.kind === "buffer") {
+          return (
+            <div
+              className="absolute z-10 overflow-hidden rounded-md border border-dashed border-amber-700 bg-amber-100 px-1.5 py-1 text-[10px] leading-tight text-amber-950"
+              key={`${block.job.id}-buffer`}
+              style={style}
+            >
+              <span className="block font-medium">Travel · {block.job.bufferMinutes} min</span>
+              <span className="block truncate">{block.name}</span>
+            </div>
+          );
+        }
+
+        const done = block.job.completedAt ? clock(block.job.completedAt) : "";
+
+        return (
+          <Link
+            className={cn(
+              "absolute z-10 overflow-hidden rounded-md px-1.5 py-1 text-[10px] leading-tight",
+              block.job.status === "COMPLETE" ? "border border-dashed bg-white text-slate-700" : swatches[colorIndex(block.userId)],
+            )}
+            href={`/admin/jobs/${block.job.id}`}
+            key={block.job.id}
+            style={style}
+          >
+            <span className="block truncate font-medium">{block.job.title}</span>
+            <span className="block truncate">{block.name}</span>
+            <span className="block truncate">
+              {clock(block.job.startsAt)}–{clock(block.job.endsAt)}
+            </span>
+            {done ? <span className="block truncate">Done {done}</span> : null}
+          </Link>
+        );
+      })}
+      {jobs.map((job) => {
+        const doneTop = minuteTop(day, job.completedAt);
+        if (doneTop == null || !job.assignedUser) {
+          return null;
+        }
+
+        return (
+          <div
+            className="pointer-events-none absolute z-20 h-0.5 bg-emerald-600"
+            key={`${job.id}-done`}
+            style={{ top: doneTop, left: 2, right: 2 }}
+            title={`Finished ${clock(job.completedAt ?? null)}`}
+          />
+        );
+      })}
       {draftBlock ? (
         <div
-          className="pointer-events-none absolute inset-x-1 rounded-md border-2 border-dashed border-foreground/70 bg-foreground/10 px-1.5 py-1 text-[10px] leading-tight"
+          className="pointer-events-none absolute inset-x-1 z-10 rounded-md border-2 border-dashed border-foreground/70 bg-foreground/10 px-1.5 py-1 text-[10px] leading-tight"
           style={{ top: draftBlock.top, height: draftBlock.height }}
         >
-          <span className="block font-medium">New booking</span>
+          <span className="block font-medium">{draft?.title || "New booking"}</span>
           <span className="block truncate">{draft?.assigneeName || "Choose a person"}</span>
+        </div>
+      ) : null}
+      {draftBuffer ? (
+        <div
+          className="pointer-events-none absolute inset-x-1 z-10 rounded-md border border-dashed border-amber-700 bg-amber-100/80 px-1.5 py-1 text-[10px] text-amber-950"
+          style={{ top: draftBuffer.top, height: draftBuffer.height }}
+        >
+          Travel · {draft?.bufferMinutes} min
         </div>
       ) : null}
     </div>
   );
+}
+
+function atHour(day: Date, hour: number) {
+  const copy = new Date(day);
+  copy.setHours(hour, 0, 0, 0);
+  return copy;
 }
 
 function laneBlocks<T extends { top: number; height: number }>(blocks: T[]) {
@@ -230,6 +325,24 @@ function placeOnDay(day: Date, startsAt: string | null | undefined, endsAt: stri
   const top = ((visibleStart.getTime() - windowStart.getTime()) / 3_600_000) * hourHeight;
   const height = Math.max(28, ((visibleEnd.getTime() - visibleStart.getTime()) / 3_600_000) * hourHeight);
   return { top, height };
+}
+
+function minuteTop(day: Date, value: string | null | undefined) {
+  if (!value) {
+    return null;
+  }
+
+  const time = new Date(value);
+  const windowStart = new Date(day);
+  windowStart.setHours(startHour, 0, 0, 0);
+  const windowEnd = new Date(day);
+  windowEnd.setHours(endHour, 0, 0, 0);
+
+  if (time < windowStart || time > windowEnd) {
+    return null;
+  }
+
+  return ((time.getTime() - windowStart.getTime()) / 3_600_000) * hourHeight;
 }
 
 function clock(value: string | null) {

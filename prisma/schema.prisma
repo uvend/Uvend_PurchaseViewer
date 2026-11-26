@@ -127,6 +127,8 @@ model Job {
   assignedUser   User?      @relation("JobAssignee", fields: [assignedUserId], references: [id])
   startsAt       DateTime?
   endsAt         DateTime?
+  bufferMinutes  Int        @default(0)
+  completedAt    DateTime?
   notes          JobNote[]
   invoices       Invoice[]
   purchases      Purchase[]

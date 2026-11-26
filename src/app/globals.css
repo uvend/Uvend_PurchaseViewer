@@ -27,6 +27,74 @@
   --sidebar-accent: #2f6bff;
   --sidebar-accent-foreground: #ffffff;
   --sidebar-border: #16325c;
+  --canvas: #f4f7fb;
+  --menu: #10284f;
+  --brand: #38bdf8;
+  --wave-1: #12315c;
+  --wave-2: #1d4f91;
+  color-scheme: light;
+}
+
+[data-theme="night"] {
+  --background: #140e22;
+  --foreground: #f5f3ff;
+  --card: #241838;
+  --card-foreground: #f5f3ff;
+  --popover: #241838;
+  --popover-foreground: #f5f3ff;
+  --primary: #8b5cf6;
+  --primary-foreground: #ffffff;
+  --secondary: #2c2044;
+  --secondary-foreground: #f5f3ff;
+  --muted: #2c2044;
+  --muted-foreground: #b7abcf;
+  --accent: #322454;
+  --accent-foreground: #f5f3ff;
+  --border: #3d2d5c;
+  --input: #3d2d5c;
+  --ring: #8b5cf6;
+  --sidebar: #100b1c;
+  --sidebar-foreground: #e4dcf8;
+  --sidebar-accent: #8b5cf6;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: #2a1c44;
+  --canvas: #140e22;
+  --menu: #1c1430;
+  --brand: #c4b5fd;
+  --wave-1: #2a1848;
+  --wave-2: #5b35a8;
+  color-scheme: dark;
+}
+
+[data-theme="finance"] {
+  --background: #f3f1e8;
+  --foreground: #1a2e26;
+  --card: #fffdf8;
+  --card-foreground: #1a2e26;
+  --popover: #fffdf8;
+  --popover-foreground: #1a2e26;
+  --primary: #1c8f5a;
+  --primary-foreground: #ffffff;
+  --secondary: #e7f3ec;
+  --secondary-foreground: #143026;
+  --muted: #efece3;
+  --muted-foreground: #6d7a72;
+  --accent: #e5f4ec;
+  --accent-foreground: #0f3d32;
+  --border: #e4dfd2;
+  --input: #e4dfd2;
+  --ring: #1c8f5a;
+  --sidebar: #0f3d32;
+  --sidebar-foreground: #d7efe4;
+  --sidebar-accent: #1f9d62;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: #145744;
+  --canvas: #f3f1e8;
+  --menu: #0c3229;
+  --brand: #7dcea0;
+  --wave-1: #145744;
+  --wave-2: #1f7a56;
+  color-scheme: light;
 }
 
 @theme inline {
@@ -59,6 +127,9 @@
   --color-sidebar-accent: var(--sidebar-accent);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
+  --color-canvas: var(--canvas);
+  --color-menu: var(--menu);
+  --color-brand: var(--brand);
 }
 
 @layer base {
@@ -86,4 +157,86 @@
   button {
     -webkit-tap-highlight-color: transparent;
   }
+}
+
+[data-theme="night"] .bg-white,
+[data-theme="finance"] .bg-white {
+  background-color: var(--card);
+}
+
+[data-theme="night"] .text-slate-900,
+[data-theme="night"] .text-slate-800,
+[data-theme="finance"] .text-slate-900,
+[data-theme="finance"] .text-slate-800 {
+  color: var(--foreground);
+}
+
+[data-theme="night"] .text-slate-700,
+[data-theme="night"] .text-slate-600 {
+  color: var(--foreground);
+}
+
+[data-theme="night"] .text-slate-500,
+[data-theme="night"] .text-slate-400,
+[data-theme="night"] .text-slate-300 {
+  color: var(--muted-foreground);
+}
+
+[data-theme="night"] .border-slate-200,
+[data-theme="night"] .border-slate-200\/80,
+[data-theme="night"] .border-slate-100,
+[data-theme="finance"] .border-slate-200,
+[data-theme="finance"] .border-slate-200\/80,
+[data-theme="finance"] .border-slate-100 {
+  border-color: var(--border);
+}
+
+[data-theme="night"] .bg-slate-50,
+[data-theme="night"] .hover\:bg-slate-50:hover,
+[data-theme="night"] .bg-slate-100,
+[data-theme="night"] .bg-slate-200 {
+  background-color: var(--muted);
+}
+
+[data-theme="night"] .bg-blue-50,
+[data-theme="night"] .bg-blue-50\/60,
+[data-theme="finance"] .bg-blue-50,
+[data-theme="finance"] .bg-blue-50\/60,
+[data-theme="night"] .hover\:bg-blue-50:hover,
+[data-theme="finance"] .hover\:bg-blue-50:hover {
+  background-color: var(--accent);
+}
+
+[data-theme="night"] .text-\[\#2f6bff\],
+[data-theme="finance"] .text-\[\#2f6bff\] {
+  color: var(--primary);
+}
+
+[data-theme="night"] .bg-\[\#2f6bff\],
+[data-theme="finance"] .bg-\[\#2f6bff\],
+[data-theme="night"] .hover\:bg-\[\#2f6bff\]:hover,
+[data-theme="finance"] .hover\:bg-\[\#2f6bff\]:hover {
+  background-color: var(--primary);
+}
+
+[data-theme="night"] .bg-\[\#f4f7fb\],
+[data-theme="night"] .bg-\[\#e7edf6\],
+[data-theme="finance"] .bg-\[\#f4f7fb\],
+[data-theme="finance"] .bg-\[\#e7edf6\] {
+  background-color: var(--canvas);
+}
+
+[data-theme="night"] .bg-\[\#0b1c3d\],
+[data-theme="finance"] .bg-\[\#0b1c3d\] {
+  background-color: var(--sidebar);
+}
+
+[data-theme="night"] .bg-\[\#10284f\],
+[data-theme="finance"] .bg-\[\#10284f\] {
+  background-color: var(--menu);
+}
+
+[data-theme="night"] .ring-\[\#0b1c3d\],
+[data-theme="finance"] .ring-\[\#0b1c3d\] {
+  --tw-ring-color: var(--sidebar);
 }

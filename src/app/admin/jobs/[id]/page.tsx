@@ -22,6 +22,8 @@ type JobDetail = {
   meterNumber: string | null;
   startsAt: string | null;
   endsAt: string | null;
+  bufferMinutes: number;
+  completedAt: string | null;
   assignedBy: { name: string | null; username: string | null } | null;
   assignedUser: { name: string | null; username: string | null } | null;
   notes: {
@@ -109,12 +111,14 @@ export default function AdminJobDetailPage() {
           <p className="text-muted-foreground">Assigned by {personName(job.assignedBy) || "not recorded"}</p>
           <p className="text-muted-foreground">Assigned to {personName(job.assignedUser) || "nobody"}</p>
           {job.startsAt && job.endsAt ? (
-            <p className="text-muted-foreground">
-              {job.status === "COMPLETE"
-                ? `${personName(job.assignedUser) || "The field user"} is available again. The slot was ${formatSlot(job.startsAt, job.endsAt)}.`
-                : `${personName(job.assignedUser) || "The field user"} is unavailable ${formatSlot(job.startsAt, job.endsAt)}.`}
-            </p>
+            <p className="text-muted-foreground">Expected {formatSlot(job.startsAt, job.endsAt)}</p>
           ) : null}
+          {job.bufferMinutes ? <p className="text-muted-foreground">Travel buffer {job.bufferMinutes} min after the expected end</p> : null}
+          <p className="text-muted-foreground">
+            {job.completedAt
+              ? `Finished ${new Intl.DateTimeFormat("en-ZA", { dateStyle: "medium", timeStyle: "short" }).format(new Date(job.completedAt))}`
+              : "Not finished yet"}
+          </p>
           <div className="flex flex-wrap gap-2">
             <Button asChild size="sm" variant="outline">
               <a href={`/api/jobs/${job.id}/pdf`}>Download job card</a>

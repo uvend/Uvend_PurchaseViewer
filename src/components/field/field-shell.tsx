@@ -85,12 +85,12 @@ export function FieldShell({
   }, []);
 
   return (
-    <div className="h-dvh min-h-0 w-full bg-[#e7edf6]">
-      <div className="mx-auto flex h-full min-h-0 w-full max-w-3xl flex-col bg-[#f4f7fb] sm:border-x sm:border-slate-200">
-        <header className="relative z-20 shrink-0 overflow-hidden bg-[#0b1c3d] pt-[env(safe-area-inset-top)] text-white">
+    <div className="h-dvh min-h-0 w-full bg-canvas">
+      <div className="mx-auto flex h-full min-h-0 w-full max-w-3xl flex-col bg-canvas sm:border-x sm:border-border">
+        <header className="relative z-20 shrink-0 overflow-hidden bg-sidebar pt-[env(safe-area-inset-top)] text-white">
           <svg className="pointer-events-none absolute top-0 right-0 h-full w-36 opacity-50" viewBox="0 0 140 80" aria-hidden>
-            <path d="M40 0 C 70 20, 90 10, 140 28 L 140 0 Z" fill="#16325c" />
-            <path d="M70 80 C 100 50, 120 70, 140 48 L 140 80 Z" fill="#1d4f91" />
+            <path d="M40 0 C 70 20, 90 10, 140 28 L 140 0 Z" fill="var(--wave-1)" />
+            <path d="M70 80 C 100 50, 120 70, 140 48 L 140 80 Z" fill="var(--wave-2)" />
           </svg>
           <div className="relative flex items-center gap-2 px-4 py-3.5">
             {backHref ? (
@@ -114,12 +114,12 @@ export function FieldShell({
 
         <main className="flex min-h-0 w-full flex-1 flex-col gap-4 overflow-y-auto px-4 py-5 sm:px-6">{children}</main>
 
-        {footer ? <div className="border-t border-slate-200 bg-white p-3">{footer}</div> : null}
+        {footer ? <div className="border-t border-border bg-card p-3">{footer}</div> : null}
 
         {showNav ? (
           <nav
             className={cn(
-              "grid shrink-0 border-t border-slate-200 bg-white px-1 pt-1 pb-[max(0.35rem,env(safe-area-inset-bottom))]",
+              "grid shrink-0 border-t border-border bg-card px-1 pt-1 pb-[max(0.35rem,env(safe-area-inset-bottom))]",
               nav.length > 4 ? "grid-cols-5" : "grid-cols-4",
             )}
           >
@@ -130,8 +130,8 @@ export function FieldShell({
               return (
                 <Link
                   className={cn(
-                    "flex min-w-0 flex-col items-center gap-1 rounded-xl px-1 py-2 text-[11px] text-slate-400",
-                    active && "bg-blue-50 font-medium text-[#2f6bff]",
+                    "flex min-w-0 flex-col items-center gap-1 rounded-xl px-1 py-2 text-[11px] text-muted-foreground",
+                    active && "bg-accent font-medium text-primary",
                   )}
                   href={item.href}
                   key={item.href}
@@ -151,8 +151,8 @@ export function FieldShell({
 function BrandMark() {
   return (
     <span className="relative size-8 shrink-0" aria-hidden>
-      <span className="absolute top-0 left-0 size-4 rounded-md bg-sky-400" />
-      <span className="absolute right-0 bottom-0 size-4 rounded-md bg-[#2f6bff] ring-2 ring-[#0b1c3d]" />
+      <span className="absolute top-0 left-0 size-4 rounded-md bg-brand" />
+      <span className="absolute right-0 bottom-0 size-4 rounded-md bg-primary ring-2 ring-sidebar" />
     </span>
   );
 }

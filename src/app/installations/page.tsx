@@ -44,7 +44,7 @@ export default function InstallationsPage() {
     let cancelled = false;
 
     async function loadJobs() {
-      const response = await fetch("/api/jobs");
+      const response = await fetch("/api/jobs?mine=1");
 
       if (!response.ok) {
         if (!cancelled) {
@@ -57,7 +57,7 @@ export default function InstallationsPage() {
 
       if (!cancelled) {
         setJobs(data.jobs);
-        setMessage(data.jobs.length ? "" : "No job cards yet. Ask admin to add one.");
+        setMessage(data.jobs.length ? "" : "No jobs assigned to you yet.");
       }
     }
 
@@ -97,9 +97,7 @@ export default function InstallationsPage() {
               {job.meterNumber ? ` · Meter ${job.meterNumber}` : ""}
             </span>
             {job.startsAt && job.endsAt ? (
-              <span className="text-sm text-muted-foreground">
-                {job.status === "COMPLETE" ? "Available" : "Unavailable"} · {formatSlot(job.startsAt, job.endsAt)}
-              </span>
+              <span className="text-sm text-muted-foreground">Expected {formatSlot(job.startsAt, job.endsAt)}</span>
             ) : null}
             <span className="text-sm text-muted-foreground">{job.customerName}</span>
             <span className="text-sm text-muted-foreground">{job.address}</span>

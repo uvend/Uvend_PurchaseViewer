@@ -9,3 +9,7 @@ export function isUserRole(value: string | null | undefined): value is UserRole 
 export function isOfficeRole(role: string | null | undefined) {
   return role === "ADMIN" || role === "OFFICE_USER";
 }
+
+export function officePathAllowed(pathname: string) {
+  return pathname === "/admin" || pathname.startsWith("/admin/tracking") || pathname.startsWith("/admin/jobs");
+}

@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Notice } from "@/components/ui/notice";
 import { Textarea } from "@/components/ui/textarea";
 import { captureGps } from "@/lib/location";
-import { formatSlot, kindLabel, type JobKind } from "@/lib/job-schedule";
+import { formatSlot, kindLabel, personName, type JobKind } from "@/lib/job-schedule";
 
 type JobNote = {
   id: string;
@@ -32,6 +32,9 @@ type JobDetail = {
   meterNumber: string | null;
   startsAt: string | null;
   endsAt: string | null;
+  bufferMinutes: number;
+  completedAt: string | null;
+  assignedUser: { name: string | null; username: string | null } | null;
   notes: JobNote[];
 };
 
@@ -237,7 +240,7 @@ export default function InstallationJobPage() {
       }
 
       await loadJob();
-      setMessage("Job complete. You are available again.");
+      setMessage("Job marked done.");
     } catch {
       setMessage("Could not save the job.");
     } finally {
@@ -255,24 +258,25 @@ export default function InstallationJobPage() {
 
   return (
     <FieldShell backHref="/installations" subtitle={job.customerName} title={job.title}>
-      <div className="grid gap-3 rounded-xl border bg-card p-4 text-sm">
-        <div>
-          <p className="font-medium">{job.customerName}</p>
+      <div className="grid gap-2 rounded-xl border bg-card p-4 text-sm">
+        <p className="font-medium">{job.customerName}</p>
+        <p className="text-muted-foreground">
+          {kindLabel(job.kind)}
+          {job.meterNumber ? ` · Meter ${job.meterNumber}` : ""}
+        </p>
+        {job.startsAt && job.endsAt ? (
+          <p className="text-muted-foreground">Expected {formatSlot(job.startsAt, job.endsAt)}</p>
+        ) : null}
+        {job.bufferMinutes ? <p className="text-muted-foreground">Travel buffer {job.bufferMinutes} min after the expected end</p> : null}
+        {job.completedAt ? (
           <p className="text-muted-foreground">
-            {kindLabel(job.kind)}
-            {job.meterNumber ? ` · Meter ${job.meterNumber}` : ""}
+            Finished{" "}
+            {new Intl.DateTimeFormat("en-ZA", { dateStyle: "medium", timeStyle: "short" }).format(new Date(job.completedAt))}
           </p>
-          {job.startsAt && job.endsAt ? (
-            <p className="text-muted-foreground">
-              {job.status === "COMPLETE" ? "Available" : "Unavailable"} · {formatSlot(job.startsAt, job.endsAt)}
-            </p>
-          ) : null}
-          <p className="text-muted-foreground">{job.address}</p>
-          {job.customerPhone ? <p className="text-muted-foreground">{job.customerPhone}</p> : null}
-        </div>
-        <Button asChild variant="outline">
-          <a href={`/api/jobs/${job.id}/pdf`}>Download job card</a>
-        </Button>
+        ) : null}
+        <p className="text-muted-foreground">Assigned to {personName(job.assignedUser) || "you"}</p>
+        <p className="text-muted-foreground">{job.address}</p>
+        {job.customerPhone ? <p className="text-muted-foreground">{job.customerPhone}</p> : null}
       </div>
 
       {message ? <Notice>{message}</Notice> : null}
@@ -325,7 +329,7 @@ export default function InstallationJobPage() {
       </div>
 
       <Button disabled={saving || job.status === "COMPLETE"} onClick={saveJob} type="button">
-        {job.status === "COMPLETE" ? "Job complete. You are available." : "Mark job complete"}
+        Done
       </Button>
     </FieldShell>
   );

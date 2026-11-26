@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { MutableRefObject } from "react";
 import { TomTomMap } from "@tomtom-org/maps-sdk/map";
 import { Marker, setWorkerUrl } from "maplibre-gl";
+import { mapStyleForTheme, themeEvent } from "@/lib/theme";
 
 setWorkerUrl(
   "https://unpkg.com/maplibre-gl@6.11.2/dist/maplibre-gl-worker.mjs",
@@ -72,7 +73,7 @@ export function TomTomPurchaseMap({
       },
       {
         apiKey,
-        style: "standardLight",
+        style: mapStyleForTheme(),
       },
     );
 
@@ -93,6 +94,19 @@ export function TomTomPurchaseMap({
       mapRef.current = null;
     };
   }, [apiKey]);
+
+  useEffect(() => {
+    function syncMapStyle() {
+      const map = mapRef.current;
+      if (!map || !mapReadyRef.current) {
+        return;
+      }
+      map.setStyle(mapStyleForTheme());
+    }
+
+    window.addEventListener(themeEvent, syncMapStyle);
+    return () => window.removeEventListener(themeEvent, syncMapStyle);
+  }, []);
 
   useEffect(() => {
     const map = mapRef.current;

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireOffice, requireUser } from "@/lib/auth";
+import { isOfficeRole } from "@/lib/roles";
 import { databaseErrorResponse, withDbRetry } from "@/lib/db";
 import { busyMessage, conflictingJob } from "@/lib/job-booking";
 import { readJobSchedule } from "@/lib/job-schedule";
@@ -30,16 +31,19 @@ const jobListInclude = {
   },
 };
 
-export async function GET() {
+export async function GET(request: Request) {
   const user = await requireUser();
 
   if (!user) {
     return NextResponse.json({ error: "Login required" }, { status: 401 });
   }
 
+  const mine = new URL(request.url).searchParams.get("mine") === "1";
+
   try {
     const jobs = await withDbRetry(() =>
       prisma.job.findMany({
+        where: mine || !isOfficeRole(user.role) ? { assignedUserId: user.userId } : undefined,
         orderBy: {
           updatedAt: "desc",
         },
@@ -74,6 +78,7 @@ export async function POST(request: Request) {
     assignedUserId?: string;
     startsAt?: string;
     endsAt?: string;
+    bufferMinutes?: number | string;
   };
   const schedule = readJobSchedule(payload);
 
@@ -89,7 +94,12 @@ export async function POST(request: Request) {
   }
 
   try {
-    const clash = await conflictingJob(schedule.assignedUserId, schedule.startsAt, schedule.endsAt);
+    const clash = await conflictingJob(
+      schedule.assignedUserId,
+      schedule.startsAt,
+      schedule.endsAt,
+      schedule.bufferMinutes,
+    );
 
     if (clash) {
       return NextResponse.json({ error: busyMessage(clash) }, { status: 409 });
@@ -109,6 +119,7 @@ export async function POST(request: Request) {
         assignedUserId: schedule.assignedUserId,
         startsAt: schedule.startsAt,
         endsAt: schedule.endsAt,
+        bufferMinutes: schedule.bufferMinutes,
       },
       include: jobListInclude,
     }));

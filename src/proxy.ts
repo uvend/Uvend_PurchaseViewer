@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { authCookieName, verifyJwt } from "@/lib/jwt";
-import { isOfficeRole } from "@/lib/roles";
+import { isOfficeRole, officePathAllowed } from "@/lib/roles";
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -36,8 +36,7 @@ export async function proxy(request: NextRequest) {
 
   if (isPurchaseLogin && user) {
     const next = request.nextUrl.searchParams.get("next") || "";
-    const destination =
-      isOfficeRole(user.role) ? (next.startsWith("/admin") ? next : "/admin") : fieldDestination(next);
+    const destination = isOfficeRole(user.role) ? officeDestination(user.role, next) : fieldDestination(next);
     return NextResponse.redirect(new URL(destination, request.url));
   }
 
@@ -51,7 +50,23 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL("/", request.url));
   }
 
+  if (user?.role === "OFFICE_USER" && isAdminPath && !officePathAllowed(pathname)) {
+    return NextResponse.redirect(new URL("/admin", request.url));
+  }
+
   return NextResponse.next();
+}
+
+function officeDestination(role: string, next: string) {
+  if (role === "ADMIN" && next.startsWith("/admin")) {
+    return next;
+  }
+
+  if (role === "OFFICE_USER" && officePathAllowed(next)) {
+    return next;
+  }
+
+  return "/admin";
 }
 
 function fieldDestination(next: string) {
